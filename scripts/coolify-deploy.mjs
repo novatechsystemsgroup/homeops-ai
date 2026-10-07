@@ -133,33 +133,29 @@ async function ensureApp(name, options, envPairs) {
   if (!APPLY) return null;
   if (!app || !app.uuid) throw new Error("could not resolve application uuid for " + name);
 
-  let created = 0;
-  let updated = 0;
-  for (const [key, value] of envPairs) {
-    try {
-      // is_buildtime: false is critical. A build-time variable is passed to docker build
-      // and echoed into the deployment log, which would leak the provider keys.
-      await api("POST", "/api/v1/applications/" + app.uuid + "/envs", {
-        key,
-        value: String(value),
-        is_buildtime: false,
-        is_runtime: true,
-        is_preview: false
-      });
-      created += 1;
-    } catch (error) {
-      if (!String(error.message).includes("409")) throw error;
-      await api("PATCH", "/api/v1/applications/" + app.uuid + "/envs", {
-        key,
-        value: String(value),
-        is_buildtime: false,
-        is_runtime: true,
-        is_preview: false
-      });
-      updated += 1;
-    }
+  // Coolify's PATCH-by-key creates a second row instead of updating, which silently
+  // leaves the container holding two values for one key. These applications are fully
+  // managed here, so the environment is synced exactly: remove everything, then create.
+  const existingEnvs = await api("GET", "/api/v1/applications/" + app.uuid + "/envs").catch(() => []);
+  const stale = (Array.isArray(existingEnvs) ? existingEnvs : []).filter((env) => env && env.uuid);
+  for (const env of stale) {
+    await api("DELETE", "/api/v1/applications/" + app.uuid + "/envs/" + env.uuid).catch(() => null);
   }
-  console.log("  env vars: " + created + " created, " + updated + " updated");
+
+  let created = 0;
+  for (const [key, value] of envPairs) {
+    // is_buildtime: false is critical: a build-time variable is passed to "docker build"
+    // and echoed into the deployment log, which would leak the provider keys.
+    await api("POST", "/api/v1/applications/" + app.uuid + "/envs", {
+      key,
+      value: String(value),
+      is_buildtime: false,
+      is_runtime: true,
+      is_preview: false
+    });
+    created += 1;
+  }
+  console.log("  env vars: " + stale.length + " removed, " + created + " created (runtime only)");
   return app;
 }
 
