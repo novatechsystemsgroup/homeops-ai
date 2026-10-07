@@ -51,6 +51,72 @@ export const HEAT_LOSS_DRAFT: PlanDraft = {
   ]
 };
 
+export const PLUMBING_DRAFT: PlanDraft = {
+  issueSummary: "Water is escaping under the kitchen sink; needs a plumber and quick containment.",
+  urgency: "needs_attention",
+  clarifyingQuestions: [],
+  actions: [
+    {
+      title: "Call a plumber and describe the leak under the sink",
+      rationale: "Water damage spreads quickly; a plumber can stop the source and check for hidden damage.",
+      ownerLabel: "Alex",
+      dueAt: null,
+      requiresConfirmation: true
+    },
+    {
+      title: "Turn off the isolation valve and empty the cupboard",
+      rationale: "Limits the damage while you wait for the visit.",
+      ownerLabel: "Priya",
+      dueAt: null,
+      requiresConfirmation: false
+    }
+  ]
+};
+
+export const ELECTRICAL_DRAFT: PlanDraft = {
+  issueSummary: "Socket sparked with a burnt smell; the circuit needs a registered electrician.",
+  urgency: "urgent",
+  clarifyingQuestions: [],
+  actions: [
+    {
+      title: "Call a registered electrician and stop using that circuit",
+      rationale: "Sparking and a burnt smell point to a fault that must be tested, not guessed at.",
+      ownerLabel: "Alex",
+      dueAt: null,
+      requiresConfirmation: true
+    },
+    {
+      title: "Switch the circuit off at the consumer unit if it is safe to reach",
+      rationale: "Removes the fire risk while you wait.",
+      ownerLabel: "Priya",
+      dueAt: null,
+      requiresConfirmation: false
+    }
+  ]
+};
+
+export const APPLIANCE_DRAFT: PlanDraft = {
+  issueSummary: "Washing machine will not drain; needs a repair visit and a way to empty it safely.",
+  urgency: "monitor",
+  clarifyingQuestions: [],
+  actions: [
+    {
+      title: "Book an appliance repairer and quote the model and error light",
+      rationale: "Manufacturer-approved repairers get the right parts first time.",
+      ownerLabel: "Priya",
+      dueAt: null,
+      requiresConfirmation: true
+    },
+    {
+      title: "Switch it off at the socket and drain the drum into a bucket",
+      rationale: "Stops the water sitting in the machine and any further damage.",
+      ownerLabel: "Alex",
+      dueAt: null,
+      requiresConfirmation: false
+    }
+  ]
+};
+
 export const BOILER_CLASSIFICATION: Classification = {
   issueType: "boiler",
   needsClarification: false,

@@ -6,7 +6,7 @@ test.describe("boiler scenario", () => {
     await openConsole(page);
 
     const started = Date.now();
-    await runScenario(page, "boiler");
+    await runScenario(page, "boiler-noise");
 
     // First visual result is the deterministic triage; the plan follows.
     await expect(page.getByTestId("triage-banner")).toBeVisible();
@@ -47,7 +47,7 @@ test.describe("boiler scenario", () => {
 
   test("resumes the stored plan from a fresh page", async ({ page }) => {
     await openConsole(page);
-    await runScenario(page, "boiler");
+    await runScenario(page, "boiler-noise");
     await expectPlanCard(page);
     await page.getByTestId("open-plan-page").click();
 

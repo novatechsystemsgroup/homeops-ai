@@ -4,7 +4,7 @@ import { expectPlanCard, openConsole, runScenario } from "./helpers";
 test.describe("safety and conversation", () => {
   test("a gas report is handled deterministically and skips the model", async ({ page }) => {
     await openConsole(page, "/nebius");
-    await runScenario(page, "gas");
+    await runScenario(page, "gas-smell");
 
     // The deterministic triage is the first thing on screen, before any model call.
     await expect(page.getByTestId("triage-banner")).toBeVisible();
@@ -39,7 +39,7 @@ test.describe("safety and conversation", () => {
 
   test("shows where the plan stands when asked later", async ({ page }) => {
     await openConsole(page);
-    await runScenario(page, "boiler");
+    await runScenario(page, "boiler-noise");
     await expectPlanCard(page);
 
     await page.getByTestId("check-plan").click();
@@ -48,7 +48,7 @@ test.describe("safety and conversation", () => {
 
   test("never exposes prompts, chain-of-thought or credentials", async ({ page }) => {
     await openConsole(page, "/nebius");
-    await runScenario(page, "boiler");
+    await runScenario(page, "boiler-noise");
     await expectPlanCard(page);
 
     const content = await page.content();

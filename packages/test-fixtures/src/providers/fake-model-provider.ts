@@ -1,6 +1,32 @@
 import type { ModelProvider, PlanModelInput } from "@homeops/agent-core";
 import type { Classification, PlanDraft } from "@homeops/contracts";
-import { BOILER_CLASSIFICATION, BOILER_DRAFT, HEAT_LOSS_DRAFT, VAGUE_CLASSIFICATION, isVagueReport } from "../model-outputs";
+import { inferIssueType } from "@homeops/agent-core";
+import {
+  APPLIANCE_DRAFT,
+  BOILER_CLASSIFICATION,
+  BOILER_DRAFT,
+  ELECTRICAL_DRAFT,
+  HEAT_LOSS_DRAFT,
+  PLUMBING_DRAFT,
+  VAGUE_CLASSIFICATION,
+  isVagueReport
+} from "../model-outputs";
+
+/** Domain-aware drafts so local demos and E2E cover more than the boiler scenario. */
+function draftForDescription(description: string): PlanDraft {
+  switch (inferIssueType(description)) {
+    case "plumbing":
+      return PLUMBING_DRAFT;
+    case "electrical":
+      return ELECTRICAL_DRAFT;
+    case "appliance":
+      return APPLIANCE_DRAFT;
+    case "heating":
+      return HEAT_LOSS_DRAFT;
+    default:
+      return BOILER_DRAFT;
+  }
+}
 
 export interface FakeModelOptions {
   name?: string;
@@ -33,7 +59,8 @@ export function createFakeModelProvider(options: FakeModelOptions = {}): ModelPr
         throw new Error("fake model provider: simulated failure");
       }
       if (options.draft) return options.draft;
-      return input.safety.flags.includes("no_heat_or_hot_water") ? HEAT_LOSS_DRAFT : BOILER_DRAFT;
+      if (input.safety.flags.includes("no_heat_or_hot_water")) return HEAT_LOSS_DRAFT;
+      return draftForDescription(input.intake.description);
     }
   };
 }

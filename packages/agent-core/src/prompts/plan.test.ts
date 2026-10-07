@@ -44,6 +44,7 @@ describe("buildPlanUserPrompt", () => {
     intake: boilerIntake(),
     household: null,
     safety: assessSafety({ description: "The boiler is humming loudly.", occupancyNotes: null }),
+    issueType: "boiler",
     today: "2026-10-07T08:00:00.000Z",
     repairHint: null
   });

@@ -5,20 +5,20 @@ import type { PlanModelInput } from "../ports";
  * verbatim instead of filling it in. The values below are illustrative only.
  */
 const PLAN_DRAFT_EXAMPLE = `{
-  "issueSummary": "Boiler is humming loudly and needs inspection before weekend guests arrive.",
+  "issueSummary": "One sentence about the reported problem.",
   "urgency": "needs_attention",
   "clarifyingQuestions": [],
   "actions": [
     {
-      "title": "Book a boiler service visit for the earliest slot",
-      "rationale": "A changing noise should be inspected before it turns into a breakdown.",
+      "title": "Call the qualified tradesperson this problem needs and book the earliest slot",
+      "rationale": "Why this action, in plain English, for this specific problem.",
       "ownerLabel": "Alex",
       "dueAt": "2026-10-08T09:00:00.000Z",
       "requiresConfirmation": true
     },
     {
-      "title": "Note when the noise happens and whether the heating is steady",
-      "rationale": "Timing and behaviour help the engineer fix it on the first visit.",
+      "title": "Take the precaution that limits damage right now",
+      "rationale": "The single most useful thing to do before anyone arrives.",
       "ownerLabel": "Priya",
       "dueAt": null,
       "requiresConfirmation": false
@@ -45,6 +45,7 @@ export function buildPlanUserPrompt(input: PlanModelInput): string {
     `Household: ${input.household ? `${input.household.name}, ${input.household.city}` : "unknown"}`,
     `Household members: ${memberList}`,
     `Reported issue: ${input.intake.description}`,
+    `Detected problem type: ${input.issueType} (stay in this domain; do not add checks that belong to another trade)`,
     `Deadline: ${input.intake.deadline ?? "none stated"}`,
     `Other context: ${input.intake.occupancyNotes ?? "none"}`,
     `Additional answers: ${input.intake.clarificationAnswers.length ? input.intake.clarificationAnswers.join(" | ") : "none"}`,

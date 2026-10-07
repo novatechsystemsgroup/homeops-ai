@@ -8,8 +8,9 @@ export async function openConsole(page: Page, path = "/alexa"): Promise<void> {
   await expect(page.getByText(/model: fake/)).toBeVisible();
 }
 
-export async function runScenario(page: Page, scenario: "boiler" | "gas"): Promise<void> {
-  await page.getByTestId(`scenario-${scenario}`).click();
+/** Scenario ids come from apps/web/src/lib/scenarios.ts. */
+export async function runScenario(page: Page, scenarioId: string): Promise<void> {
+  await page.getByTestId(`scenario-${scenarioId}`).click();
 }
 
 export async function expectPlanCard(page: Page): Promise<void> {

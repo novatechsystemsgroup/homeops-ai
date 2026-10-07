@@ -4,6 +4,7 @@ import type {
   Household,
   HouseholdMember,
   IssueIntake,
+  IssueType,
   PlanDraft,
   RepairPlan,
   SafetyAssessment,
@@ -16,6 +17,8 @@ export interface PlanModelInput {
   intake: IssueIntake;
   household: Household | null;
   safety: SafetyAssessment;
+  /** Detected domain of the problem; drives prompts, research and the fallback plan. */
+  issueType: IssueType;
   /** ISO timestamp used for relative deadlines ("before Saturday"). */
   today: string;
   /** Set on a retry so the model can repair a rejected draft. */

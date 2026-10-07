@@ -26,7 +26,7 @@ try {
   console.log("Live console connected (" + WEB_URL + ") - providers: nebius + tavily");
 
   const started = Date.now();
-  await page.getByTestId("scenario-boiler").click();
+  await page.getByTestId("scenario-boiler-noise").click();
 
   // First visual result: deterministic triage, no model involved.
   await page.getByTestId("triage-banner").waitFor({ timeout: 5_000 });

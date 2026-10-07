@@ -9,6 +9,7 @@ const input = {
   intake: boilerIntake(),
   household: null,
   safety: assessSafety({ description: "The boiler is humming loudly.", occupancyNotes: null }),
+  issueType: "boiler" as const,
   today: "2026-10-07T08:00:00.000Z",
   repairHint: null
 };

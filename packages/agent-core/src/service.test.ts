@@ -151,9 +151,16 @@ describe("HomeOpsService.createPlan", () => {
 
   it("falls back to a deterministic issue type when the model answers 'other'", () => {
     expect(inferIssueType("The boiler is making a loud humming noise.")).toBe("boiler");
-    expect(inferIssueType("Water is dripping under the sink next to a socket.")).toBe("plumbing");
+    // Water near electrics is routed to the electrical domain on purpose: the plan must
+    // isolate power before anyone starts chasing the leak. The safety rules still raise
+    // this case to an emergency independently of the issue type.
+    expect(inferIssueType("Water is dripping under the sink next to a socket.")).toBe("electrical");
+    expect(inferIssueType("Water is dripping under the kitchen sink.")).toBe("plumbing");
     expect(inferIssueType("The kitchen light fitting is buzzing.")).toBe("electrical");
     expect(inferIssueType("The tumble dryer stopped heating.")).toBe("appliance");
+    // "drain" is a plumbing word, but the specific appliance always wins.
+    expect(inferIssueType("The washing machine will not drain and the drum is full.")).toBe("appliance");
+    expect(inferIssueType("There is no hot water and the radiators are cold.")).toBe("heating");
     expect(inferIssueType("Something odd happened.")).toBe("other");
   });
 

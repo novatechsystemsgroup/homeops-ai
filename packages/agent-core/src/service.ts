@@ -127,7 +127,7 @@ export class HomeOpsService {
       summary: `Deterministic triage: urgency=${safety.urgency}, flags=${safety.flags.join(",") || "none"}, rules=${safety.ruleIds.join(",") || "none"}.`
     });
 
-    const modelInput: PlanModelInput = { intake, household, safety, today: this.deps.clock.now().toISOString(), repairHint: null };
+    const today = this.deps.clock.now().toISOString();
 
     // 1. Emergencies never wait for a model.
     if (safety.urgency === "emergency") {
@@ -143,7 +143,7 @@ export class HomeOpsService {
         household,
         safety,
         urgency: safety.urgency,
-        draft: buildFallbackPlanDraft(modelInput),
+        draft: buildFallbackPlanDraft({ intake, household, safety, issueType: inferIssueType(intake.description), today, repairHint: null }),
         sources: [],
         researchStatus: "skipped",
         degraded: false
@@ -163,7 +163,7 @@ export class HomeOpsService {
     // 2. One controlled clarification round.
     let issueType: IssueType | null = null;
     if (intake.clarificationAnswers.length === 0) {
-      const classification = await this.tryClassify(modelInput, planId, emit);
+      const classification = await this.tryClassify({ intake, household, safety, issueType: inferIssueType(intake.description), today, repairHint: null }, planId, emit);
       const inferred = inferIssueType(intake.description);
       issueType = classification && classification.issueType !== "other" ? classification.issueType : inferred;
       if (classification) {
@@ -181,6 +181,8 @@ export class HomeOpsService {
         }
       }
     }
+
+    const modelInput: PlanModelInput = { intake, household, safety, issueType: issueType ?? "other", today, repairHint: null };
 
     // 3. Research and planning both take seconds: run them together and merge when
     // both are done, so the user waits for the slower one instead of the sum.
@@ -605,12 +607,16 @@ const SYMPTOM_PATTERNS: Array<{ pattern: RegExp; phrase: string }> = [
   { pattern: /smell|miros/i, phrase: "smelling of gas" }
 ];
 
+/**
+ * Ordered from the most specific to the most generic: "the washing machine will not
+ * drain" is an appliance, even though "drain" is also a plumbing word.
+ */
 const ISSUE_TYPE_PATTERNS: Array<{ type: IssueType; pattern: RegExp }> = [
   { type: "boiler", pattern: /boiler|central heating|combi|centrala|centrală|apă caldă|apa calda/i },
-  { type: "heating", pattern: /radiator|thermostat|underfloor heating|heating system|încălzire|incalzire/i },
-  { type: "plumbing", pattern: /tap|sink|toilet|drain|pipe|plumb|leak|robinet|chiuvet|scurgere|conduct/i },
+  { type: "appliance", pattern: /washing machine|dishwasher|fridge|freezer|oven|tumble dryer|microwave|masina de spalat|mașină de spălat/i },
   { type: "electrical", pattern: /socket|electric|wiring|fuse|circuit|light fitting|priz|electrice/i },
-  { type: "appliance", pattern: /washing machine|dishwasher|fridge|freezer|oven|tumble dryer|masina de spalat|mașină de spălat/i }
+  { type: "plumbing", pattern: /tap|sink|toilet|drain|pipe|plumb|leak|robinet|chiuvet|scurgere|conduct/i },
+  { type: "heating", pattern: /radiator|thermostat|underfloor heating|heating system|încălzire|incalzire/i }
 ];
 
 /**
