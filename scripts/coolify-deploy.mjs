@@ -190,15 +190,21 @@ async function main() {
   if (APPLY) {
     const apiUuid = apiApp ? apiApp.uuid : ((await findApp("homeops-api")) || {}).uuid;
     if (apiUuid) {
-      try {
-        await api("POST", "/api/v1/applications/" + apiUuid + "/storages", {
-          type: "persistent",
-          name: "homeops-data",
-          mount_path: "/data"
-        });
-        console.log("persistent volume /data created for homeops-api");
-      } catch (error) {
-        console.log("volume: " + String(error.message).slice(0, 160));
+      const existing = await api("GET", "/api/v1/applications/" + apiUuid + "/storages").catch(() => null);
+      const alreadyMounted = JSON.stringify(existing || "").includes('"mount_path":"/data"') || JSON.stringify(existing || "").includes('"mount_path":"\\/data"');
+      if (alreadyMounted) {
+        console.log("persistent volume /data already mounted");
+      } else {
+        try {
+          await api("POST", "/api/v1/applications/" + apiUuid + "/storages", {
+            type: "persistent",
+            name: "homeops-data",
+            mount_path: "/data"
+          });
+          console.log("persistent volume /data created for homeops-api");
+        } catch (error) {
+          console.log("volume: " + String(error.message).slice(0, 160));
+        }
       }
     }
   }
