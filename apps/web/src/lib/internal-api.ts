@@ -5,6 +5,15 @@
  */
 export const INTERNAL_API_URL = (process.env.INTERNAL_API_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
 
+/**
+ * Absolute URL for server-side calls. Server Components run in Node, where fetch
+ * rejects relative URLs — the browser-facing base is intentionally empty in
+ * production (same origin), so server code must never reuse it.
+ */
+export function internalApiUrl(path: string): string {
+  return `${INTERNAL_API_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 const HOP_BY_HOP = new Set([
   "connection",
   "keep-alive",

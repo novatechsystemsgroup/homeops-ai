@@ -49,7 +49,11 @@ test.describe("boiler scenario", () => {
     await openConsole(page);
     await runScenario(page, "boiler-noise");
     await expectPlanCard(page);
-    await page.getByTestId("open-plan-page").click();
+    const navigation = await Promise.all([page.waitForNavigation(), page.getByTestId("open-plan-page").click()]);
+    // Server Components fetch the plan with an absolute internal URL; a relative one
+    // returned HTTP 500 in production, so assert the status, not just the content.
+    expect(navigation[0]?.status()).toBe(200);
+    expect(page.url()).toContain("/plan/");
 
     await expect(page.getByTestId("plan-card")).toBeVisible();
     await expect(page.getByTestId("resume-open")).toContainText(/\d+ open/);

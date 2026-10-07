@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
-import { API_BASE, type PlanEnvelope } from "@/lib/api";
+import type { PlanEnvelope } from "@/lib/api";
+import { internalApiUrl } from "@/lib/internal-api";
 import { PlanCard } from "@/components/PlanCard";
 import { TracePanel } from "@/components/TracePanel";
 
 async function loadPlan(planId: string): Promise<PlanEnvelope | null> {
-  const response = await fetch(`${API_BASE}/api/plans/${planId}`, { cache: "no-store" });
+  // Server Components must call the API with an absolute URL (see internalApiUrl).
+  const response = await fetch(internalApiUrl(`/api/plans/${planId}`), { cache: "no-store" });
   if (!response.ok) return null;
   return (await response.json()) as PlanEnvelope;
 }

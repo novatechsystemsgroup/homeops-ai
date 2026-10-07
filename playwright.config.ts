@@ -45,8 +45,12 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       env: {
+        // Production-like: the browser talks to its own origin, the route handlers
+        // proxy to the API over the internal network, and server components use
+        // INTERNAL_API_URL. This is what caught the broken plan page.
         PORT: String(WEB_PORT),
-        NEXT_PUBLIC_API_BASE_URL: `http://localhost:${API_PORT}`,
+        NEXT_PUBLIC_API_BASE_URL: "",
+        INTERNAL_API_URL: `http://127.0.0.1:${API_PORT}`,
         NEXT_DIST_DIR: ".next-e2e"
       }
     }
