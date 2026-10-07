@@ -18,10 +18,9 @@ export function requireKey(name: "NEBIUS_API_KEY" | "TAVILY_API_KEY"): string {
   return value;
 }
 
-/** Keys are never printed; this is only useful to confirm something was loaded. */
+/** Keys are never printed, not even partially: this only confirms that something was loaded. */
 export function fingerprint(value: string): string {
-  if (value.length <= 8) return "***";
-  return `${value.slice(0, 4)}…${value.slice(-2)} (len ${value.length})`;
+  return value.trim() === "" ? "missing" : `configured (length ${value.trim().length})`;
 }
 
 export function heading(title: string): void {

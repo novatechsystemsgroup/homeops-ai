@@ -34,6 +34,19 @@ Design rules:
 4. No silent actions: every state-changing call requires `confirm: true`.
 5. No secrets in logs, traces or fixtures.
 
+## Measured on 2026-10-07 (live services, not estimates)
+
+| Step | Result |
+|---|---|
+| Nebius `GET /models` | 18 models, 4 NVIDIA (Nemotron 3 family) |
+| `nvidia/Nemotron-3_5-Lightning` plan draft | ~4–8 s, valid `PlanDraft` |
+| `nvidia/nemotron-3-super-120b-a12b` plan draft | 6–68 s depending on reasoning length (kept as an option) |
+| Tavily runtime search | ~1.4–2.1 s, 3–5 sources with URLs |
+| End-to-end `pnpm demo:plan` | ~14 s, `degraded: false`, plan + sources + trace |
+| `pnpm mcp:smoke` | 401 without token, six tools discovered, confirmation semantics verified |
+
+Design notes that came out of these measurements live in [docs/nebius-integration.md](docs/nebius-integration.md).
+
 ## Quick start
 
 ```bash
@@ -70,6 +83,15 @@ pnpm mcp:smoke                             # MCP tool discovery + tool call
 - Demo data is synthetic (a fictional household). No real addresses, phone numbers or personal data.
 - Research results always keep their source URL and retrieval time; prices and availability are never invented.
 - This project is a coordinator, not a professional diagnostic or contracting service.
+
+## Documentation
+
+| Document | Content |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | layering, request flow, surfaces, persistence |
+| [docs/safety-boundaries.md](docs/safety-boundaries.md) | deterministic triage rules and product limits |
+| [docs/nebius-integration.md](docs/nebius-integration.md) | endpoint, models, probe results, model quirks |
+| [docs/mcp.md](docs/mcp.md) | MCP tools, auth, sessions, how to verify |
 
 ## License
 

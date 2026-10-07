@@ -53,6 +53,9 @@ export interface ServiceDeps {
   config: ServiceConfig;
 }
 
+/** Product contract: a household plan stays readable and actionable. */
+const MAX_PLAN_ACTIONS = 5;
+
 export type ActionMutationResult =
   | { kind: "ok"; plan: RepairPlan }
   | { kind: "confirmation_required"; message: string; proposedChanges: string[] }
@@ -459,19 +462,19 @@ export class HomeOpsService {
     return {
       id: planId,
       householdId: household.id,
-      issueSummary: draft.issueSummary,
+      issueSummary: clamp(draft.issueSummary, 300),
       urgency,
       safetyFlags: safety.flags,
       safetyGuidance: safety.mandatoryGuidance,
-      clarifyingQuestions: draft.clarifyingQuestions.slice(0, this.deps.config.maxClarifyingQuestions),
-      actions: draft.actions.map((action) => {
+      clarifyingQuestions: draft.clarifyingQuestions.slice(0, this.deps.config.maxClarifyingQuestions).map((question) => clamp(question, 200)),
+      actions: draft.actions.slice(0, MAX_PLAN_ACTIONS).map((action) => {
         const owner = resolveOwner(household.members, action.ownerLabel);
         return {
           id: this.deps.ids.uuid(),
-          title: action.title,
-          rationale: action.rationale,
+          title: clamp(action.title, 120),
+          rationale: clamp(action.rationale, 400),
           ownerMemberId: owner.ownerMemberId,
-          ownerLabel: owner.ownerLabel,
+          ownerLabel: clamp(owner.ownerLabel, 80),
           dueAt: action.dueAt,
           status: "open" as const,
           requiresConfirmation: action.requiresConfirmation || /contact|call|book|email|send|pay/i.test(action.title)
@@ -549,6 +552,13 @@ export function buildSearchQuery(intake: IssueIntake, household: Household | nul
       ? "boiler repair Gas Safe registered engineer"
       : `${issueType} repair qualified tradesperson`;
   return `${topic} ${place}`.slice(0, 280);
+}
+
+/** Keeps the plan inside the product contract without discarding an otherwise valid draft. */
+function clamp(value: string, max: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1).trimEnd()}\u2026`;
 }
 
 function dedupeSources(sources: Source[]): Source[] {

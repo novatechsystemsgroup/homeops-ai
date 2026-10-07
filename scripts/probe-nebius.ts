@@ -34,7 +34,10 @@ const client = createNebiusChatClient({ apiKey, baseUrl });
 const prompt = [
   "Household report: the boiler is making a loud humming noise and guests arrive on Saturday; there is no smell of gas and hot water still works.",
   "",
-  'Return JSON only: {"issueSummary": string, "urgency": "emergency"|"urgent"|"needs_attention"|"monitor", "clarifyingQuestions": string[], "actions": [{"title": string, "rationale": string, "ownerLabel": string, "dueAt": null, "requiresConfirmation": boolean}]}'
+  "Return one JSON object with these keys and your own values:",
+  '{"issueSummary":"...","urgency":"needs_attention","clarifyingQuestions":[],"actions":[{"title":"...","rationale":"...","ownerLabel":"Alex","dueAt":null,"requiresConfirmation":true}]}',
+  "",
+  "Constraints: 1 to 5 actions, at most 2 clarifying questions, urgency is one of emergency|urgent|needs_attention|monitor."
 ].join("\n");
 
 let jsonModeSupported = true;
@@ -48,7 +51,7 @@ try {
     system: "You are a household operations planner. Reply with a JSON object only.",
     user: prompt,
     temperature: 0.2,
-    maxOutputTokens: 900,
+    maxOutputTokens: 2000,
     jsonMode: true,
     timeoutMs: 60_000
   });
@@ -64,7 +67,7 @@ try {
     system: "You are a household operations planner. Reply with a JSON object only, no prose and no markdown fences.",
     user: prompt,
     temperature: 0.2,
-    maxOutputTokens: 900,
+    maxOutputTokens: 2000,
     jsonMode: false,
     timeoutMs: 60_000
   });
@@ -79,7 +82,17 @@ console.log(`  tokens           : ${usage ? `in ${usage.inputTokens} / out ${usa
 console.log(`  json_object mode : ${jsonModeSupported ? "accepted (use it)" : "not supported (prompt-only JSON + validation)"}`);
 
 heading("3. Schema validation of the model draft");
-const parsed = PlanDraftSchema.safeParse(extractJsonObject(text));
+let draftJson: unknown;
+try {
+  draftJson = extractJsonObject(text);
+} catch (error) {
+  console.error(`  raw response could not be parsed (${error instanceof Error ? error.message : String(error)})`);
+  console.error("  first 500 characters of the response:");
+  console.error(`  ${JSON.stringify(text.slice(0, 500))}`);
+  console.error(`  output tokens reported: ${usage?.outputTokens ?? "unknown"} (a truncated response means the token cap is too low)`);
+  process.exit(1);
+}
+const parsed = PlanDraftSchema.safeParse(draftJson);
 if (!parsed.success) {
   console.error("  INVALID draft:");
   for (const issue of parsed.error.issues) console.error(`    - ${issue.path.join(".") || "draft"}: ${issue.message}`);

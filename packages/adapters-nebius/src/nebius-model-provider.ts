@@ -25,10 +25,21 @@ export interface NebiusModelProviderConfig {
 }
 
 export const DEFAULT_NEBIUS_BASE_URL = "https://api.tokenfactory.us-central1.nebius.com/v1/";
-export const DEFAULT_PLAN_MODEL = "nvidia/nemotron-3-super-120b-a12b";
+/** Measured on 2026-10-07: ~4-6 s per plan draft with a valid JSON result. */
+export const DEFAULT_PLAN_MODEL = "nvidia/Nemotron-3_5-Lightning";
 export const DEFAULT_FAST_MODEL = "nvidia/Nemotron-3_5-Lightning";
+/** Deep-reasoning alternative; measured at ~68 s per draft, so set MODEL_TIMEOUT_MS=180000 when used. */
+export const REASONING_PLAN_MODEL = "nvidia/nemotron-3-super-120b-a12b";
 
 const NO_CLARIFICATION: Classification = { issueType: "other", needsClarification: false, questions: [] };
+
+/**
+ * Output budgets are measured, not guessed: Nemotron-3.5-Lightning spends roughly
+ * 2.5k tokens on its internal reasoning before writing the JSON object, so a small
+ * cap truncates the answer mid-object.
+ */
+export const PLAN_OUTPUT_TOKENS = 4000;
+export const CLASSIFY_OUTPUT_TOKENS = 800;
 
 export function createNebiusModelProvider(config: NebiusModelProviderConfig): ModelProvider {
   const client = config.client ?? createNebiusChatClient({ apiKey: config.apiKey, baseUrl: config.baseUrl });
@@ -38,9 +49,15 @@ export function createNebiusModelProvider(config: NebiusModelProviderConfig): Mo
   // Flipped to false the first time the endpoint rejects response_format.
   let jsonMode = true;
 
-  async function complete(model: string, system: string, user: string): Promise<unknown> {
+  /** Keeps the raw text around: a rejected draft is only debuggable with it. */
+  async function completeWithRaw(
+    model: string,
+    system: string,
+    user: string,
+    maxOutputTokens: number
+  ): Promise<{ value: unknown; raw: string }> {
     const attempt = async (useJsonMode: boolean) =>
-      client.complete({ model, system, user, temperature, maxOutputTokens: 1200, jsonMode: useJsonMode, timeoutMs });
+      client.complete({ model, system, user, temperature, maxOutputTokens, jsonMode: useJsonMode, timeoutMs });
 
     let response;
     try {
@@ -51,7 +68,17 @@ export function createNebiusModelProvider(config: NebiusModelProviderConfig): Mo
       response = await attempt(false);
     }
 
-    return extractJsonObject(response.text);
+    try {
+      return { value: extractJsonObject(response.text), raw: response.text };
+    } catch (error) {
+      const preview = JSON.stringify(response.text.slice(0, 160));
+      throw new Error(`${error instanceof Error ? error.message : String(error)} — response starts with: ${preview}`);
+    }
+  }
+
+  async function complete(model: string, system: string, user: string, maxOutputTokens: number): Promise<unknown> {
+    const { value } = await completeWithRaw(model, system, user, maxOutputTokens);
+    return value;
   }
 
   return {
@@ -63,7 +90,7 @@ export function createNebiusModelProvider(config: NebiusModelProviderConfig): Mo
       // Classification is an optimisation, never a blocker: any failure means "plan now".
       try {
         const parsed = ClassificationSchema.safeParse(
-          await complete(config.fastModel, CLASSIFY_SYSTEM_PROMPT, buildClassifyUserPrompt(input))
+          await complete(config.fastModel, CLASSIFY_SYSTEM_PROMPT, buildClassifyUserPrompt(input), CLASSIFY_OUTPUT_TOKENS)
         );
         if (!parsed.success) return NO_CLARIFICATION;
         return parsed.data;
@@ -74,7 +101,8 @@ export function createNebiusModelProvider(config: NebiusModelProviderConfig): Mo
 
     async plan(input: PlanModelInput): Promise<PlanDraft> {
       const user = input.repairHint ? buildRepairPrompt(input, input.repairHint) : buildPlanUserPrompt(input);
-      const parsed = PlanDraftSchema.safeParse(await complete(config.planModel, PLAN_SYSTEM_PROMPT, user));
+      const raw = await completeWithRaw(config.planModel, PLAN_SYSTEM_PROMPT, user, PLAN_OUTPUT_TOKENS);
+      const parsed = PlanDraftSchema.safeParse(raw.value);
       if (!parsed.success) {
         const detail = parsed.error.issues.map((issue) => `${issue.path.join(".") || "draft"}: ${issue.message}`).join("; ");
         throw new Error(`Nebius plan draft failed schema validation (${detail})`);
