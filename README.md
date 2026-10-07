@@ -102,6 +102,19 @@ a separate Next build directory, so it can run next to a normal `pnpm dev` sessi
 - Research results always keep their source URL and retrieval time; prices and availability are never invented.
 - This project is a coordinator, not a professional diagnostic or contracting service.
 
+## Deploy
+
+Two containers, one public origin: the web app is published and proxies `/api`, `/mcp` and
+`/healthz` to the API container, which stays on the internal network and keeps SQLite on a volume.
+
+```bash
+docker compose build && docker compose up -d   # http://localhost:3000, API internal only
+```
+
+Production runs the same images on the existing Coolify server — see
+[docs/deployment.md](docs/deployment.md) for the DNS record, the two applications, environment
+variables and post-deploy verification.
+
 ## Documentation
 
 | Document | Content |

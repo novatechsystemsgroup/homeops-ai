@@ -26,6 +26,15 @@ jobs:
           MODEL_PROVIDER: fake
           SEARCH_PROVIDER: fake
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The deployment images are the release artefacts: build them on every push so a
+      # Dockerfile regression cannot reach the server.
+      - run: docker build -f apps/api/Dockerfile -t homeops-api:ci .
+      - run: docker build -f apps/web/Dockerfile -t homeops-web:ci .
+
   e2e:
     runs-on: ubuntu-latest
     steps:

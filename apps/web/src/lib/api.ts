@@ -1,6 +1,10 @@
 import type { AgentTraceEvent, ApiMeta, Household, PlanAction, RepairPlan } from "@homeops/contracts";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "");
+// An explicitly empty value means "same origin": in production the web container
+// proxies /api to the API container, so no cross-origin traffic exists at all.
+const configuredApiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+export const API_BASE = (configuredApiBase === undefined ? "http://localhost:8787" : configuredApiBase).replace(/\/$/, "");
 
 export interface CreatePlanResponse {
   plan: RepairPlan;
