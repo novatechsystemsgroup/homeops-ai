@@ -646,15 +646,6 @@ export function summariseSymptom(description: string): string | null {
 }
 
 /** How to ask for the right trade, per problem type. Gas Safe only covers gas work. */
-const REGISTER_LABEL: Record<IssueType, string> = {
-  boiler: "boiler engineer",
-  heating: "heating engineer",
-  plumbing: "plumber",
-  electrical: "electrician",
-  appliance: "appliance repairer",
-  other: "qualified tradesperson"
-};
-
 const REGISTER_QUERY: Record<IssueType, string> = {
   boiler: "find a Gas Safe registered boiler engineer",
   heating: "find a Gas Safe registered heating engineer",
@@ -686,7 +677,6 @@ export function buildResearchQueries(
 ): ResearchQuery[] {
   const type: IssueType = issueType ?? "other";
   const place = household?.city ? `${household.city} UK` : "UK";
-  const label = REGISTER_LABEL[type];
   const registerDomains = REGISTER_DOMAINS[type];
 
   const registerQuery: ResearchQuery = {
