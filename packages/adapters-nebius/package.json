@@ -1,0 +1,24 @@
+{
+  "name": "@homeops/adapters-nebius",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NVIDIA open models on Nebius Token Factory (OpenAI-compatible) as a HomeOps ModelProvider.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@homeops/agent-core": "workspace:*",
+    "@homeops/contracts": "workspace:*",
+    "openai": "7.30.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@homeops/test-fixtures": "workspace:*",
+    "vitest": "5.0.3"
+  }
+}

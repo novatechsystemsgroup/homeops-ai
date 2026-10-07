@@ -1,0 +1,25 @@
+{
+  "name": "@homeops/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server (Streamable HTTP) exposing HomeOps AI capabilities to Alexa+ style clients.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@homeops/agent-core": "workspace:*",
+    "@homeops/contracts": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@homeops/persistence": "workspace:*",
+    "@homeops/test-fixtures": "workspace:*",
+    "vitest": "5.0.3"
+  }
+}

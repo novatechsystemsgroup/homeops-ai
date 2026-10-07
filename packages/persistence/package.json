@@ -1,0 +1,26 @@
+{
+  "name": "@homeops/persistence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SQLite persistence for HomeOps AI (Drizzle ORM + better-sqlite3).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@homeops/agent-core": "workspace:*",
+    "@homeops/contracts": "workspace:*",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "drizzle-kit": "0.31.11",
+    "vitest": "5.0.3"
+  }
+}

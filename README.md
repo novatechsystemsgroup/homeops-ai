@@ -1,0 +1,76 @@
+# HomeOps AI
+
+> A household operations agent that turns a natural request such as *"the boiler is making a noise and we have guests on Saturday"* into an executable, explainable plan — and follows it until it is done.
+
+HomeOps AI is submitted to two hackathons from one codebase:
+
+| Submission | Surface | What it proves |
+|---|---|---|
+| **HomeOps for Alexa+** (Amazon Developer Hackathon) | Streamable-HTTP **MCP server** + conversational web simulator with cards and confirmations | real tool-use, cross-session context, task completion |
+| **HomeOps Agent — Open Infrastructure for Household Operations** (Nebius × NVIDIA) | NVIDIA **Nemotron** model on **Nebius Token Factory**, **Tavily** runtime research, agent trace console | open-infrastructure reasoning, structured output, source transparency |
+
+> The MVP demonstrates exactly one scenario: **a boiler problem before an important weekend**. It is a vertical slice, not a general smart-home assistant.
+
+## Architecture
+
+```text
+apps/web (Next.js simulator + trace console)
+      |  REST
+apps/api (Hono)  ──────────────►  packages/mcp-server  (/mcp, Streamable HTTP)
+      |                                     |
+      └──────────►  packages/agent-core  ◄───┘
+                    (orchestration, deterministic safety, ports)
+                          |            |
+             packages/adapters-nebius   packages/adapters-tavily
+                          |            |
+                    packages/persistence (SQLite + Drizzle)
+```
+
+Design rules:
+
+1. `agent-core` never imports an external SDK — it depends on `@homeops/contracts` and Node built-ins only.
+2. REST and MCP are two surfaces over **one service layer** (`HomeOpsService`).
+3. Safety triage is deterministic. A language model can never downgrade an emergency identified by the rules.
+4. No silent actions: every state-changing call requires `confirm: true`.
+5. No secrets in logs, traces or fixtures.
+
+## Quick start
+
+```bash
+cp .env.example .env      # then paste NEBIUS_API_KEY and TAVILY_API_KEY
+pnpm install
+pnpm db:migrate && pnpm db:seed
+pnpm dev                  # api on :8787, web on :3000
+```
+
+Without API keys the app runs with an explicit fake provider (`MODEL_PROVIDER=fake`, `SEARCH_PROVIDER=fake`), so tests and CI never need credentials.
+
+```bash
+pnpm lint && pnpm typecheck && pnpm test   # quality gates
+pnpm probe:nebius                          # real call: model id, latency, token usage
+pnpm probe:tavily                          # real call: sources with URLs
+pnpm demo:plan                             # end-to-end plan from the CLI
+pnpm mcp:smoke                             # MCP tool discovery + tool call
+```
+
+## MCP tools (Alexa+ surface)
+
+| Tool | Purpose | Confirmation |
+|---|---|---|
+| `build_repair_plan` | turn an intake into a validated `RepairPlan` | no |
+| `get_safety_guidance` | deterministic safety triage | no |
+| `search_service_options` | runtime research through Tavily | no |
+| `assign_household_task` | assign a plan action to a household member | **yes** |
+| `get_plan_status` | current plan and open actions | no |
+| `update_action_status` | mark an action open/assigned/done | **yes** |
+
+## Safety and privacy
+
+- Deterministic rules handle gas, smoke/burning, water near electricity, carbon monoxide, vulnerable occupants and loss of heat/hot water; emergency copy is never model-generated.
+- Demo data is synthetic (a fictional household). No real addresses, phone numbers or personal data.
+- Research results always keep their source URL and retrieval time; prices and availability are never invented.
+- This project is a coordinator, not a professional diagnostic or contracting service.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

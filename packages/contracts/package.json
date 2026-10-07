@@ -1,0 +1,20 @@
+{
+  "name": "@homeops/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "description": "Shared Zod contracts for HomeOps AI: domain schemas, API payloads and MCP tool I/O.",
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "vitest": "5.0.3"
+  }
+}

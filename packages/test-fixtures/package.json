@@ -1,0 +1,22 @@
+{
+  "name": "@homeops/test-fixtures",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Synthetic household, scenario and provider fakes for HomeOps AI tests and demo mode.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@homeops/agent-core": "workspace:*",
+    "@homeops/contracts": "workspace:*",
+    "@homeops/persistence": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "5.0.3"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "@homeops/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HomeOps AI REST API and MCP host (Hono + Streamable HTTP).",
+  "exports": {
+    ".": "./src/server.ts",
+    "./server": "./src/server.ts",
+    "./container": "./src/container.ts",
+    "./config": "./src/config.ts",
+    "./mcp/mount": "./src/mcp/mount.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@homeops/adapters-nebius": "workspace:*",
+    "@homeops/adapters-tavily": "workspace:*",
+    "@homeops/agent-core": "workspace:*",
+    "@homeops/contracts": "workspace:*",
+    "@homeops/mcp-server": "workspace:*",
+    "@homeops/persistence": "workspace:*",
+    "@homeops/test-fixtures": "workspace:*",
+    "@hono/node-server": "2.1.3",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "dotenv": "18.0.6",
+    "hono": "4.13.13",
+    "pino": "10.4.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "tsx": "4.23.15",
+    "vitest": "5.0.3"
+  }
+}
