@@ -78,7 +78,8 @@ function appPayload(name, options) {
     server_uuid: SERVER_UUID,
     environment_name: cfg.COOLIFY_ENVIRONMENT || "production",
     destination_uuid: DESTINATION_UUID,
-    git_repository: GITHUB_REPO,
+    // The API rejects the short "owner/repo" form used elsewhere in Coolify.
+    git_repository: GITHUB_REPO.startsWith("http") ? GITHUB_REPO : "https://github.com/" + GITHUB_REPO,
     git_branch: BRANCH,
     build_pack: "dockerfile",
     dockerfile_location: options.dockerfile,
@@ -86,7 +87,8 @@ function appPayload(name, options) {
     ports_exposes: options.port,
     instant_deploy: false,
     name,
-    ...(options.domain ? { domains: options.domain, fqdn: options.domain } : {})
+    // "fqdn" is rejected by the create endpoint; "domains" is the accepted field.
+    ...(options.domain ? { domains: options.domain } : {})
   };
 }
 
@@ -131,17 +133,33 @@ async function ensureApp(name, options, envPairs) {
   if (!APPLY) return null;
   if (!app || !app.uuid) throw new Error("could not resolve application uuid for " + name);
 
-  const data = envPairs.map(([key, value]) => ({ key, value: String(value), is_preview: false }));
-  try {
-    await api("POST", "/api/v1/applications/" + app.uuid + "/envs", { data });
-    console.log("  env vars set: " + data.length);
-  } catch (error) {
-    console.log("  env bulk endpoint failed (" + String(error.message).slice(0, 120) + "), trying one by one");
-    for (const pair of data) {
-      await api("POST", "/api/v1/applications/" + app.uuid + "/envs", { key: pair.key, value: String(pair.value) });
+  let created = 0;
+  let updated = 0;
+  for (const [key, value] of envPairs) {
+    try {
+      // is_buildtime: false is critical. A build-time variable is passed to docker build
+      // and echoed into the deployment log, which would leak the provider keys.
+      await api("POST", "/api/v1/applications/" + app.uuid + "/envs", {
+        key,
+        value: String(value),
+        is_buildtime: false,
+        is_runtime: true,
+        is_preview: false
+      });
+      created += 1;
+    } catch (error) {
+      if (!String(error.message).includes("409")) throw error;
+      await api("PATCH", "/api/v1/applications/" + app.uuid + "/envs", {
+        key,
+        value: String(value),
+        is_buildtime: false,
+        is_runtime: true,
+        is_preview: false
+      });
+      updated += 1;
     }
-    console.log("  env vars set: " + data.length);
   }
+  console.log("  env vars: " + created + " created, " + updated + " updated");
   return app;
 }
 
@@ -150,34 +168,65 @@ async function main() {
   console.log("project " + PROJECT_UUID + " | server " + SERVER_UUID + " | repo " + GITHUB_REPO + "@" + BRANCH);
   console.log("mode: " + (APPLY ? "APPLY" : "dry run"));
 
-  const apiApp = await ensureApp("homeops-api", { dockerfile: "/apps/api/Dockerfile", port: "8787" }, API_ENV);
-  const webApp = await ensureApp("homeops-web", { dockerfile: "/apps/web/Dockerfile", port: "3000", domain: WEB_DOMAIN }, WEB_ENV);
-
-  if (APPLY && apiApp) {
+  const failures = [];
+  const safe = async (label, run) => {
     try {
-      await api("POST", "/api/v1/applications/" + apiApp.uuid + "/storages", {
-        type: "persistent",
-        name: "homeops-data",
-        mount_path: "/data",
-        host_path: null
-      });
-      console.log("  persistent volume /data created");
+      return await run();
     } catch (error) {
-      console.log("  volume: " + String(error.message).slice(0, 160));
+      const message = String(error && error.message ? error.message : error);
+      console.log("  " + label + " failed: " + message.slice(0, 200));
+      failures.push(label + ": " + message.slice(0, 200));
+      return null;
+    }
+  };
+
+  const apiApp = await safe("homeops-api", () =>
+    ensureApp("homeops-api", { dockerfile: "/apps/api/Dockerfile", port: "8787" }, API_ENV)
+  );
+  const webApp = await safe("homeops-web", () =>
+    ensureApp("homeops-web", { dockerfile: "/apps/web/Dockerfile", port: "3000", domain: WEB_DOMAIN }, WEB_ENV)
+  );
+
+  if (APPLY) {
+    const apiUuid = apiApp ? apiApp.uuid : ((await findApp("homeops-api")) || {}).uuid;
+    if (apiUuid) {
+      try {
+        await api("POST", "/api/v1/applications/" + apiUuid + "/storages", {
+          type: "persistent",
+          name: "homeops-data",
+          mount_path: "/data"
+        });
+        console.log("persistent volume /data created for homeops-api");
+      } catch (error) {
+        console.log("volume: " + String(error.message).slice(0, 160));
+      }
     }
   }
 
   if (APPLY) {
-    for (const app of [apiApp, webApp]) {
-      if (!app) continue;
+    const targets = [
+      { name: "homeops-api", uuid: apiApp ? apiApp.uuid : ((await findApp("homeops-api")) || {}).uuid },
+      { name: "homeops-web", uuid: webApp ? webApp.uuid : ((await findApp("homeops-web")) || {}).uuid }
+    ];
+    for (const target of targets) {
+      if (!target.uuid) {
+        console.log("deploy skipped (application not found): " + target.name);
+        continue;
+      }
       try {
-        await api("GET", "/api/v1/deploy?uuid=" + app.uuid + "&force=false");
-        console.log("deploy triggered: " + app.name);
+        // Coolify 4.3 moved the trigger to POST.
+        await api("POST", "/api/v1/deploy?uuid=" + target.uuid + "&force=false");
+        console.log("deploy triggered: " + target.name + " (" + target.uuid + ")");
       } catch (error) {
-        console.log("deploy failed for " + app.name + ": " + String(error.message).slice(0, 200));
+        console.log("deploy failed for " + target.name + ": " + String(error.message).slice(0, 200));
       }
     }
     console.log("\nNext: watch the builds in the Coolify UI; the public URL is " + WEB_DOMAIN);
+  }
+
+  if (failures.length > 0) {
+    console.log("\nproblems:");
+    for (const failure of failures) console.log("  - " + failure);
   }
 }
 

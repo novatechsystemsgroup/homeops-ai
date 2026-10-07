@@ -7,8 +7,11 @@ RUN corepack enable && corepack prepare pnpm@9.15.3 --activate
 
 WORKDIR /app
 COPY . .
-# Dev dependencies are required to build (typescript, the Tailwind postcss plugin).
-RUN pnpm install --frozen-lockfile --prod=false
+# Install only the web app and its workspace dependencies. The full workspace would
+# pull in better-sqlite3 (used by the API) and fail without native build tools here.
+# Dev dependencies are still included: typescript and the Tailwind postcss plugin
+# are required to build.
+RUN pnpm install --frozen-lockfile --prod=false --filter "@homeops/web..."
 
 # Empty by default: the browser calls its own origin and the Next proxy forwards to the API.
 ARG NEXT_PUBLIC_API_BASE_URL=""
