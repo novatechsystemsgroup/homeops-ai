@@ -164,6 +164,28 @@ describe("HomeOpsService.createPlan", () => {
     expect(inferIssueType("Something odd happened.")).toBe("other");
   });
 
+  it("trusts the literal keywords over a wrong model category when routing research", async () => {
+    const harness = createHarness({
+      model: {
+        name: "fake",
+        planModel: "fake-plan",
+        fastModel: "fake-fast",
+        async classify() {
+          // A plausible model mistake: it files a sink leak under heating.
+          return { issueType: "heating", needsClarification: false, questions: [] };
+        },
+        async plan() {
+          return DRAFT;
+        }
+      }
+    });
+
+    await harness.service.createPlan({ householdId: HOUSEHOLD_ID, description: "Water is dripping under the kitchen sink." });
+    const call = harness.searchCalls.at(0);
+    expect(call?.query).toContain("plumber");
+    expect(call?.options.includeDomains).toEqual(["watersafe.org.uk"]);
+  });
+
   it("uses the deterministic issue type for research when classification fails", async () => {
     const harness = createHarness({
       model: {

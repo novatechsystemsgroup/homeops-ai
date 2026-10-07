@@ -163,9 +163,16 @@ export class HomeOpsService {
     // 2. One controlled clarification round.
     let issueType: IssueType | null = null;
     if (intake.clarificationAnswers.length === 0) {
-      const classification = await this.tryClassify({ intake, household, safety, issueType: inferIssueType(intake.description), today, repairHint: null }, planId, emit);
       const inferred = inferIssueType(intake.description);
-      issueType = classification && classification.issueType !== "other" ? classification.issueType : inferred;
+      const classification = await this.tryClassify(
+        { intake, household, safety, issueType: inferred, today, repairHint: null },
+        planId,
+        emit
+      );
+      // A literal keyword ("sink", "socket", "washing machine") is a more reliable
+      // router than a model's category, and routing decides which official register
+      // and guidance the research uses. The model still writes the plan itself.
+      issueType = inferred !== "other" ? inferred : (classification?.issueType ?? "other");
       if (classification) {
         const questions = classification.questions.slice(0, this.deps.config.maxClarifyingQuestions);
         if (classification.needsClarification && questions.length > 0) {
