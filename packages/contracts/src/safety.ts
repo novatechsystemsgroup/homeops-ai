@@ -9,7 +9,9 @@ export const SafetyFlagSchema = z.enum([
   "carbon_monoxide",
   "no_heat_or_hot_water",
   "vulnerable_occupant",
-  "appliance_noise"
+  "appliance_noise",
+  "active_water_leak",
+  "appliance_fault"
 ]);
 
 /** Result of the deterministic safety triage. Never produced by a language model. */

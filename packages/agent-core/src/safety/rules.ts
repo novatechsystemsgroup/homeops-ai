@@ -1,12 +1,14 @@
 import type { IssueIntake, SafetyAssessment, SafetyFlag, Urgency } from "@homeops/contracts";
 import { URGENCY_RANK } from "@homeops/contracts";
 import {
+  APPLIANCE_FAULT_GUIDANCE,
   BOILER_NOISE_GUIDANCE,
   CARBON_MONOXIDE_GUIDANCE,
   ELECTRICAL_GUIDANCE,
   FIRE_GUIDANCE,
   GAS_GUIDANCE,
-  HEAT_LOSS_GUIDANCE
+  HEAT_LOSS_GUIDANCE,
+  WATER_LEAK_GUIDANCE
 } from "./copy";
 
 interface SafetyRule {
@@ -78,6 +80,28 @@ export const SAFETY_RULES: SafetyRule[] = [
       /\b(?:fara|fără)\s+(?:caldura|căldură|apa calda|apă caldă|incalzire|încălzire)\b/i
     ],
     guidance: HEAT_LOSS_GUIDANCE
+  },
+  {
+    id: "LEAK_001",
+    flag: "active_water_leak",
+    urgency: "needs_attention",
+    callEmergencyServices: false,
+    patterns: [
+      /\b(?:leak|leaking|dripping|drip|water (?:is )?(?:coming|running|pouring)|flooding|burst|scurgere|picură|picura|inundatie|inundație)\b/i,
+      /\bwater\b[^.!?]{0,30}\b(?:under|from|everywhere|cupboard|floor|ceiling)\b/i
+    ],
+    guidance: WATER_LEAK_GUIDANCE
+  },
+  {
+    id: "APPLIANCE_001",
+    flag: "appliance_fault",
+    urgency: "needs_attention",
+    callEmergencyServices: false,
+    patterns: [
+      /\b(?:washing machine|dishwasher|fridge|freezer|oven|tumble dryer|microwave)\b[^.!?]{0,60}\b(?:not|won'?t|stopped|broken|fault|error|leaking|noise|smell|drain|draining|cold|hot|dead)\b/i,
+      /\b(?:masina de spalat|mașină de spălat|frigider|cuptor)\b[^.!?]{0,40}\b(?:nu|defect|eroare|scurger)\b/i
+    ],
+    guidance: APPLIANCE_FAULT_GUIDANCE
   },
   {
     id: "VULNERABLE_001",

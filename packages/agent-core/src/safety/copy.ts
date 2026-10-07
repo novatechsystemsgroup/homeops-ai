@@ -28,6 +28,16 @@ export const HEAT_LOSS_GUIDANCE = [
   "Do not open the boiler casing or attempt a repair yourself; gas appliances must be worked on by a Gas Safe registered engineer."
 ];
 
+export const WATER_LEAK_GUIDANCE = [
+  "Water that is escaping now: turn it off at the isolation valve or the stopcock, move anything valuable away, and put a container under the drip.",
+  "Do not use a wet socket, plug or appliance; if water is anywhere near electrics, treat it as an emergency."
+];
+
+export const APPLIANCE_FAULT_GUIDANCE = [
+  "Switch the appliance off at the socket, note the model number and any error code, and check the filter or drain only if the manual says it is safe.",
+  "Unplug before moving the appliance, and never open a gas appliance yourself."
+];
+
 export const BOILER_NOISE_GUIDANCE = [
   "Boiler noise without gas, smoke or a visible leak is usually not an emergency, but it should be inspected before it becomes one.",
   "Do not open the boiler casing; only a Gas Safe registered engineer should work on a gas appliance."

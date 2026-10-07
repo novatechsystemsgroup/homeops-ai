@@ -93,6 +93,26 @@ describe("deterministic safety triage", () => {
     expect(assessment.negatedTriggers).toContain("HEAT_003");
   });
 
+  it("rates an active water leak as needs attention, with containment guidance", () => {
+    const assessment = assessSafety({ description: "Water is dripping under the kitchen sink and the cupboard floor is wet.", occupancyNotes: null });
+    expect(assessment.urgency).toBe("needs_attention");
+    expect(assessment.flags).toContain("active_water_leak");
+    expect(assessment.mandatoryGuidance.join(" ")).toMatch(/isolation valve|stopcock/i);
+  });
+
+  it("keeps a leak next to electrics as an emergency", () => {
+    const assessment = assessSafety({ description: "Water is dripping under the sink next to a socket.", occupancyNotes: null });
+    expect(assessment.urgency).toBe("emergency");
+    expect(assessment.callEmergencyServices).toBe(true);
+  });
+
+  it("rates a broken appliance as needs attention without inventing a repair", () => {
+    const assessment = assessSafety({ description: "The washing machine will not drain and the drum is full.", occupancyNotes: null });
+    expect(assessment.urgency).toBe("needs_attention");
+    expect(assessment.flags).toContain("appliance_fault");
+    expect(assessment.mandatoryGuidance.join(" ")).toMatch(/switch the appliance off|model number/i);
+  });
+
   it("returns monitor for a routine request with no risk signals", () => {
     const assessment = assessSafety({ description: "I would like to plan a yearly boiler service.", occupancyNotes: null });
     expect(assessment.urgency).toBe("monitor");

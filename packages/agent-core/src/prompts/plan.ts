@@ -34,6 +34,7 @@ Rules:
 - Prefer concrete, reversible actions that a family can complete today.
 - Anything that contacts a third party (calling, booking, emailing, paying) must have requiresConfirmation = true.
 - issueSummary is one short sentence (under 300 characters); each rationale is at most two sentences.
+- Every plan must include at least one action that contacts the qualified trade for this problem type (Gas Safe engineer, plumber, electrician, appliance repairer, locksmith). Safety steps come first in an emergency.
 - Reply with a single JSON object and nothing else. No markdown, no commentary, no preamble.`;
 
 export function buildPlanUserPrompt(input: PlanModelInput): string {
