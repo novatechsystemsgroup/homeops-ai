@@ -8,8 +8,8 @@ import type {
   RepairPlan,
   Source
 } from "@homeops/contracts";
-import { HomeOpsService, type ServiceConfig, type ServiceDeps } from "./service";
-import type { HouseholdRepository, ModelProvider, NewTraceEventInput, PlanRepository, SearchProvider, TraceSink } from "./ports";
+import { HomeOpsService, buildResearchQueries, inferIssueType, summariseSymptom, type ServiceConfig, type ServiceDeps } from "./service";
+import type { HouseholdRepository, ModelProvider, NewTraceEventInput, PlanRepository, SearchOptions, SearchProvider, TraceSink } from "./ports";
 
 const HOUSEHOLD_ID = "0f5c9a52-4a1e-4c1b-9a53-2f8f6d1a7b31";
 const MEMBER_ID = "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
@@ -26,6 +26,17 @@ function household(): Household {
     isSynthetic: true,
     members: [member()],
     createdAt: "2026-10-07T07:00:00.000Z"
+  };
+}
+
+function boilerIntakeFixture() {
+  return {
+    householdId: HOUSEHOLD_ID,
+    description: "The boiler is making a loud humming noise.",
+    deadline: null,
+    occupancyNotes: null,
+    budgetBand: "unknown" as const,
+    clarificationAnswers: []
   };
 }
 
@@ -87,10 +98,12 @@ function createHarness(overrides: Partial<ServiceDeps> = {}, config: Partial<Ser
     async classify() { return { issueType: "boiler", needsClarification: false, questions: [] }; },
     async plan() { return DRAFT; }
   };
+  const searchCalls: Array<{ query: string; options: SearchOptions }> = [];
   const search: SearchProvider = {
     name: "fake-search",
     description: "deterministic fixture search",
-    async search(): Promise<Source[]> {
+    async search(query, options): Promise<Source[]> {
+      searchCalls.push({ query, options });
       return [{ title: "Gas Safe Register", url: "https://www.gassaferegister.co.uk/", retrievedAt: "2026-10-07T08:00:00.000Z", snippet: "Find an engineer." }];
     }
   };
@@ -107,7 +120,7 @@ function createHarness(overrides: Partial<ServiceDeps> = {}, config: Partial<Ser
     ...overrides
   };
 
-  return { service: new HomeOpsService(deps), get plan() { return plan; }, events };
+  return { service: new HomeOpsService(deps), get plan() { return plan; }, events, searchCalls };
 }
 
 describe("HomeOpsService.createPlan", () => {
@@ -120,6 +133,58 @@ describe("HomeOpsService.createPlan", () => {
     expect(result.plan.sources).toHaveLength(1);
     expect(result.plan.degraded).toBe(false);
     expect(result.clarificationRequired).toBe(false);
+  });
+
+  it("builds a register query and a symptom-based guidance query", () => {
+    const intake = { ...boilerIntakeFixture(), description: "The boiler is making a loud humming noise before guests arrive." };
+    const queries = buildResearchQueries(intake, null, "boiler");
+
+    expect(queries).toHaveLength(2);
+    expect(queries[0]?.includeDomains).toEqual(["gassaferegister.co.uk"]);
+    expect(queries[1]?.query).toContain("making a noise");
+    expect(queries[1]?.query).not.toContain("Bristol");
+    expect(queries[1]?.excludeDomains).toContain("reddit.com");
+    expect(summariseSymptom("No hot water since yesterday.")).toBe("not heating or no hot water");
+    expect(summariseSymptom("The kitchen tap is dripping.")).toBe("leaking");
+    expect(summariseSymptom("Something is wrong somewhere.")).toBeNull();
+  });
+
+  it("falls back to a deterministic issue type when the model answers 'other'", () => {
+    expect(inferIssueType("The boiler is making a loud humming noise.")).toBe("boiler");
+    expect(inferIssueType("Water is dripping under the sink next to a socket.")).toBe("plumbing");
+    expect(inferIssueType("The kitchen light fitting is buzzing.")).toBe("electrical");
+    expect(inferIssueType("The tumble dryer stopped heating.")).toBe("appliance");
+    expect(inferIssueType("Something odd happened.")).toBe("other");
+  });
+
+  it("uses the deterministic issue type for research when classification fails", async () => {
+    const harness = createHarness({
+      model: {
+        name: "fake",
+        planModel: "fake-plan",
+        fastModel: "fake-fast",
+        async classify() {
+          throw new Error("classifier offline");
+        },
+        async plan() {
+          return DRAFT;
+        }
+      }
+    });
+
+    await harness.service.createPlan({ householdId: HOUSEHOLD_ID, description: "The boiler is making a loud humming noise." });
+    const call = harness.searchCalls.at(0);
+    expect(call?.query).toContain("boiler engineer");
+    expect(call?.options.includeDomains).toContain("gassaferegister.co.uk");
+  });
+
+  it("researches authoritative UK sources for the detected issue type", async () => {
+    const harness = createHarness();
+    await harness.service.createPlan({ householdId: HOUSEHOLD_ID, description: "The boiler is making a loud humming noise." });
+    const call = harness.searchCalls.at(0);
+    expect(call?.query).toContain("UK");
+    expect(call?.query).toContain("Bristol");
+    expect(call?.options.includeDomains).toContain("gassaferegister.co.uk");
   });
 
   it("skips the model entirely for an emergency and keeps the deterministic guidance", async () => {

@@ -44,6 +44,19 @@ Design rules:
 | Tavily runtime search | ~1.4–2.1 s, 3–5 sources with URLs |
 | End-to-end `pnpm demo:plan` | ~14 s, `degraded: false`, plan + sources + trace |
 | `pnpm mcp:smoke` | 401 without token, six tools discovered, confirmation semantics verified |
+| `pnpm check:live` (real browser) | plan card in 13-22 s, 7 sources (official register + manufacturer guides), no page errors |
+| `pnpm test:e2e` | 6 browser flows in ~6 s: boiler scenario, assignment confirmation, resume, gas emergency, clarifying round, no-leak check |
+
+### Research quality policy
+
+A single broad web query returns trade directories and pages about the wrong Bristol. HomeOps AI therefore
+runs **two targeted queries in parallel with the model call** and merges them:
+
+1. an official register query (`gassaferegister.co.uk` for boilers, `watersafe.org.uk` for plumbing, `electricalsafetyfirst.org.uk` for electrics) capped at two results;
+2. a symptom-based guidance query (`boiler making a noise what to do UK`) with forums, video and social domains excluded.
+
+The issue type comes from the fast model, with a deterministic keyword fallback so research never degrades
+because one model call failed. Results are deduplicated on host + path and the list is kept short on purpose.
 
 Design notes that came out of these measurements live in [docs/nebius-integration.md](docs/nebius-integration.md).
 
@@ -59,12 +72,17 @@ pnpm dev                  # api on :8787, web on :3000
 Without API keys the app runs with an explicit fake provider (`MODEL_PROVIDER=fake`, `SEARCH_PROVIDER=fake`), so tests and CI never need credentials.
 
 ```bash
-pnpm lint && pnpm typecheck && pnpm test   # quality gates
+pnpm lint && pnpm typecheck && pnpm test   # quality gates (unit + contract)
+pnpm test:e2e                              # Playwright: browser flows against the fake providers
 pnpm probe:nebius                          # real call: model id, latency, token usage
 pnpm probe:tavily                          # real call: sources with URLs
 pnpm demo:plan                             # end-to-end plan from the CLI
 pnpm mcp:smoke                             # MCP tool discovery + tool call
+pnpm check:live                            # real browser + real Nebius/Tavily, asserts the demo promises
 ```
+
+`pnpm test:e2e` starts its own API (:8788) and web (:3100) servers with deterministic fake providers and
+a separate Next build directory, so it can run next to a normal `pnpm dev` session.
 
 ## MCP tools (Alexa+ surface)
 

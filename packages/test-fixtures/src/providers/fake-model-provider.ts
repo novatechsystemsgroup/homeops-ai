@@ -1,6 +1,6 @@
 import type { ModelProvider, PlanModelInput } from "@homeops/agent-core";
 import type { Classification, PlanDraft } from "@homeops/contracts";
-import { BOILER_CLASSIFICATION, BOILER_DRAFT, HEAT_LOSS_DRAFT } from "../model-outputs";
+import { BOILER_CLASSIFICATION, BOILER_DRAFT, HEAT_LOSS_DRAFT, VAGUE_CLASSIFICATION, isVagueReport } from "../model-outputs";
 
 export interface FakeModelOptions {
   name?: string;
@@ -23,8 +23,8 @@ export function createFakeModelProvider(options: FakeModelOptions = {}): ModelPr
     planModel: options.planModel ?? "fake-plan-model",
     fastModel: options.fastModel ?? "fake-fast-model",
 
-    async classify(): Promise<Classification> {
-      return options.classification ?? BOILER_CLASSIFICATION;
+    async classify(input: PlanModelInput): Promise<Classification> {
+      return options.classification ?? (isVagueReport(input.intake.description) ? VAGUE_CLASSIFICATION : BOILER_CLASSIFICATION);
     },
 
     async plan(input: PlanModelInput): Promise<PlanDraft> {

@@ -39,6 +39,46 @@ describe("Tavily result normalisation", () => {
 });
 
 describe("TavilySearchProvider", () => {
+  it("collapses near-duplicate pages that differ only by query string or anchor", () => {
+    const sources = normalizeSearchResults(
+      [
+        { title: "Finding a tradesperson advice guides - Which?", url: "https://www.which.co.uk/advice/guides?utm_source=a", content: "Title: Finding a tradesperson advice guides - Which?" },
+        { title: "Finding a tradesperson advice guides - Which?", url: "https://www.which.co.uk/advice/guides#section", content: "same guide" },
+        { title: "Finding a tradesperson advice guides - Which?", url: "https://www.which.co.uk/advice/other-page", content: "same title" },
+        { title: "Gas Safe Register", url: "https://www.gassaferegister.co.uk/", content: "Find an engineer" }
+      ],
+      RETRIEVED,
+      5
+    );
+
+    expect(sources).toHaveLength(2);
+    expect(sources[0]?.snippet).toBe("Finding a tradesperson advice guides - Which?");
+    expect(sources[1]?.url).toBe("https://www.gassaferegister.co.uk/");
+  });
+
+  it("prefers the trusted domains and retries without them when the filter returns nothing", async () => {
+    const calls: Array<{ limit: number; includeDomains?: string[] }> = [];
+    const provider = createTavilySearchProvider({
+      apiKey: "test-key",
+      searchImpl: async (_query, options) => {
+        calls.push(options);
+        return options.includeDomains && options.includeDomains.length > 0
+          ? []
+          : [{ title: "Gas Safe Register", url: "https://www.gassaferegister.co.uk/", content: "Find an engineer" }];
+      }
+    });
+
+    const sources = await provider.search("boiler advice Bristol UK", {
+      limit: 3,
+      location: "Bristol",
+      includeDomains: ["gassaferegister.co.uk"]
+    });
+
+    expect(calls[0]?.includeDomains).toEqual(["gassaferegister.co.uk"]);
+    expect(calls[1]?.includeDomains).toBeUndefined();
+    expect(sources).toHaveLength(1);
+  });
+
   it("returns normalised sources through the SearchProvider port", async () => {
     const provider = createTavilySearchProvider({
       apiKey: "test-key",

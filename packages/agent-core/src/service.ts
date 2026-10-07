@@ -164,8 +164,9 @@ export class HomeOpsService {
     let issueType: IssueType | null = null;
     if (intake.clarificationAnswers.length === 0) {
       const classification = await this.tryClassify(modelInput, planId, emit);
+      const inferred = inferIssueType(intake.description);
+      issueType = classification && classification.issueType !== "other" ? classification.issueType : inferred;
       if (classification) {
-        issueType = classification.issueType;
         const questions = classification.questions.slice(0, this.deps.config.maxClarifyingQuestions);
         if (classification.needsClarification && questions.length > 0) {
           await emit({
@@ -181,10 +182,14 @@ export class HomeOpsService {
       }
     }
 
-    // 3. Structured planning with one repair retry, then a deterministic fallback.
+    // 3. Research and planning both take seconds: run them together and merge when
+    // both are done, so the user waits for the slower one instead of the sum.
+    const researchPromise = this.runResearch({ planId, intake, household, issueType, emit });
+
+    // 4. Structured planning with one repair retry, then a deterministic fallback.
     const draft = await this.planWithRetry(modelInput, planId, emit);
 
-    // 4. Deterministic safety is a floor, never a ceiling set by the model.
+    // 5. Deterministic safety is a floor, never a ceiling set by the model.
     let urgency = draft.urgency;
     if (URGENCY_RANK[draft.urgency] < URGENCY_RANK[safety.urgency]) {
       urgency = safety.urgency;
@@ -196,49 +201,7 @@ export class HomeOpsService {
       });
     }
 
-    // 5. Runtime research, only when it can help and never for emergencies.
-    const sources: Source[] = [];
-    let researchStatus: ResearchStatus = "skipped";
-    if (this.deps.config.searchEnabled) {
-      const query = buildSearchQuery(intake, household, issueType);
-      await emit({
-        planId,
-        type: "search.requested",
-        status: "ok",
-        provider: this.deps.search.name,
-        summary: `Researching options: ${query}`
-      });
-      const searchStarted = Date.now();
-      try {
-        const results = await withTimeout(
-          this.deps.search.search(query, { limit: this.deps.config.searchResultLimit, location: household.city }),
-          this.deps.config.searchTimeoutMs,
-          "search"
-        );
-        sources.push(...results);
-        researchStatus = results.length > 0 ? "ok" : "unavailable";
-        await emit({
-          planId,
-          type: "search.completed",
-          status: researchStatus === "ok" ? "ok" : "degraded",
-          provider: this.deps.search.name,
-          durationMs: Date.now() - searchStarted,
-          summary: researchStatus === "ok" ? `${results.length} source(s) attached.` : "Research returned no usable sources."
-        });
-      } catch (error) {
-        researchStatus = "unavailable";
-        await emit({
-          planId,
-          type: "search.completed",
-          status: "error",
-          provider: this.deps.search.name,
-          durationMs: Date.now() - searchStarted,
-          summary: `Research failed: ${describe(error)}`
-        });
-      }
-    } else {
-      await emit({ planId, type: "search.skipped", status: "ok", summary: "Runtime research disabled by configuration." });
-    }
+    const { sources, researchStatus } = await researchPromise;
 
     const plan = this.assemblePlan({
       planId,
@@ -274,6 +237,69 @@ export class HomeOpsService {
     return { plan, trace, clarificationRequired: false };
   }
 
+  /** Runtime research: targeted queries, merged, deduplicated and capped. */
+  private async runResearch(args: {
+    planId: string;
+    intake: IssueIntake;
+    household: Household;
+    issueType: IssueType | null;
+    emit: (event: NewTraceEventInput) => Promise<AgentTraceEvent>;
+  }): Promise<{ sources: Source[]; researchStatus: ResearchStatus }> {
+    const { planId, intake, household, issueType, emit } = args;
+    const sources: Source[] = [];
+    let researchStatus: ResearchStatus = "skipped";
+
+    if (this.deps.config.searchEnabled) {
+      const queries = buildResearchQueries(intake, household, issueType);
+      await emit({
+        planId,
+        type: "search.requested",
+        status: "ok",
+        provider: this.deps.search.name,
+        summary: `Researching ${queries.length} targeted queries: ${queries.map((query) => query.query).join(" | ")}`.slice(0, 300)
+      });
+
+      const searchStarted = Date.now();
+      const settled = await Promise.allSettled(
+        queries.map((researchQuery) =>
+          withTimeout(
+            this.deps.search.search(researchQuery.query, {
+              limit: Math.min(researchQuery.limit ?? this.deps.config.searchResultLimit, this.deps.config.searchResultLimit),
+              location: household.city,
+              includeDomains: researchQuery.includeDomains,
+              excludeDomains: researchQuery.excludeDomains
+            }),
+            this.deps.config.searchTimeoutMs,
+            "search"
+          )
+        )
+      );
+
+      let failures = 0;
+      for (const result of settled) {
+        if (result.status === "fulfilled") sources.push(...result.value);
+        else failures += 1;
+      }
+
+      researchStatus = sources.length > 0 ? "ok" : "unavailable";
+      await emit({
+        planId,
+        type: "search.completed",
+        status: researchStatus === "ok" ? "ok" : failures === settled.length ? "error" : "degraded",
+        provider: this.deps.search.name,
+        durationMs: Date.now() - searchStarted,
+        summary:
+          researchStatus === "ok"
+            ? `${sources.length} raw result(s) from ${queries.length} queries${failures > 0 ? ` (${failures} failed)` : ""}.`
+            : "Research returned no usable sources."
+      });
+    } else {
+      await emit({ planId, type: "search.skipped", status: "ok", summary: "Runtime research disabled by configuration." });
+    }
+
+    return { sources, researchStatus };
+  }
+
   async getPlanEnvelope(planId: string): Promise<PlanEnvelope | null> {
     const plan = await this.deps.plans.getPlan(planId);
     if (!plan) return null;
@@ -292,7 +318,7 @@ export class HomeOpsService {
   async searchOptions(query: string, location: string | null, limit: number): Promise<{ sources: Source[]; researchStatus: ResearchStatus }> {
     try {
       const sources = await withTimeout(
-        this.deps.search.search(query, { limit, location }),
+        this.deps.search.search(query, { limit, location, includeDomains: researchDomainsFor(null) }),
         this.deps.config.searchTimeoutMs,
         "search"
       );
@@ -545,13 +571,124 @@ export function resolveOwner(members: HouseholdMember[], ownerLabel: string): { 
   return { ownerMemberId: null, ownerLabel: ownerLabel || "Household" };
 }
 
+/**
+ * Official register per issue type. Measured behaviour: one broad query returns
+ * trade directories and pages about the wrong Bristol; a register query plus a
+ * guidance query returns the two things a household can actually act on.
+ */
+const REGISTER_DOMAINS: Record<IssueType, string[]> = {
+  boiler: ["gassaferegister.co.uk"],
+  heating: ["gassaferegister.co.uk"],
+  plumbing: ["watersafe.org.uk"],
+  electrical: ["electricalsafetyfirst.org.uk"],
+  appliance: [],
+  other: []
+};
+
+/** Topic words for the guidance query (no "engineer": guidance is about the symptom). */
+const TOPIC_LABEL: Record<IssueType, string> = {
+  boiler: "boiler",
+  heating: "heating system",
+  plumbing: "plumbing",
+  electrical: "electrics",
+  appliance: "appliance",
+  other: "household repair"
+};
+
+/** Deterministic symptom phrase, so the second query is specific without sending the raw report. */
+const SYMPTOM_PATTERNS: Array<{ pattern: RegExp; phrase: string }> = [
+  { pattern: /noise|noisy|humming|banging|rattling|kettling|zgomot|bubuit|vibrat/i, phrase: "making a noise" },
+  { pattern: /leak|leaking|drip|dripping|scurgere|picura/i, phrase: "leaking" },
+  { pattern: /no heat|no hot water|not heating|without heat|fără căldură|fara caldura|nu avem apă caldă/i, phrase: "not heating or no hot water" },
+  { pattern: /pressure|presiune/i, phrase: "losing pressure" },
+  { pattern: /error|fault code|cod de eroare/i, phrase: "showing an error code" },
+  { pattern: /smell|miros/i, phrase: "smelling of gas" }
+];
+
+const ISSUE_TYPE_PATTERNS: Array<{ type: IssueType; pattern: RegExp }> = [
+  { type: "boiler", pattern: /boiler|central heating|combi|centrala|centrală|apă caldă|apa calda/i },
+  { type: "heating", pattern: /radiator|thermostat|underfloor heating|heating system|încălzire|incalzire/i },
+  { type: "plumbing", pattern: /tap|sink|toilet|drain|pipe|plumb|leak|robinet|chiuvet|scurgere|conduct/i },
+  { type: "electrical", pattern: /socket|electric|wiring|fuse|circuit|light fitting|priz|electrice/i },
+  { type: "appliance", pattern: /washing machine|dishwasher|fridge|freezer|oven|tumble dryer|masina de spalat|mașină de spălat/i }
+];
+
+/**
+ * Keyword fallback for the issue type. Used when the fast model is unavailable or
+ * answers "other": the research queries (official register, guidance) depend on it,
+ * and a vague plan is worse than a deterministic best guess.
+ */
+export function inferIssueType(description: string): IssueType {
+  for (const candidate of ISSUE_TYPE_PATTERNS) {
+    if (candidate.pattern.test(description)) return candidate.type;
+  }
+  return "other";
+}
+
+export function summariseSymptom(description: string): string | null {
+  for (const symptom of SYMPTOM_PATTERNS) {
+    if (symptom.pattern.test(description)) return symptom.phrase;
+  }
+  return null;
+}
+
+const REGISTER_LABEL: Record<IssueType, string> = {
+  boiler: "boiler engineer",
+  heating: "heating engineer",
+  plumbing: "plumber",
+  electrical: "electrician",
+  appliance: "appliance repairer",
+  other: "qualified tradesperson"
+};
+
+/** Forums, video and social posts are noise in a plan: they are never cited. */
+const LOW_AUTHORITY_DOMAINS = ["reddit.com", "youtube.com", "quora.com", "pinterest.com", "facebook.com", "tiktok.com", "mumsnet.com"];
+
+export interface ResearchQuery {
+  query: string;
+  includeDomains?: string[];
+  excludeDomains?: string[];
+  /** Per-query cap, so one query cannot crowd out the other in the merged list. */
+  limit?: number;
+}
+
+export function researchDomainsFor(issueType: IssueType | null): string[] {
+  return REGISTER_DOMAINS[issueType ?? "other"];
+}
+
+export function buildResearchQueries(
+  intake: IssueIntake,
+  household: Household | null,
+  issueType: IssueType | null
+): ResearchQuery[] {
+  const type: IssueType = issueType ?? "other";
+  const place = household?.city ? `${household.city} UK` : "UK";
+  const label = REGISTER_LABEL[type];
+  const registerDomains = REGISTER_DOMAINS[type];
+
+  const registerQuery: ResearchQuery = {
+    query: `find a Gas Safe registered ${label} ${place}`.slice(0, 280),
+    // Two listings are enough to act on; the rest of the list is guidance.
+    limit: 2
+  };
+  if (registerDomains.length > 0) registerQuery.includeDomains = registerDomains;
+
+  // The guidance query deliberately omits the city: national guidance is what a
+  // household needs next, and adding a place pushes engineer listings to the top.
+  const symptom = summariseSymptom(intake.description) ?? "problem";
+
+  return [
+    registerQuery,
+    {
+      query: `${TOPIC_LABEL[type]} ${symptom} what to do UK`.slice(0, 280),
+      excludeDomains: LOW_AUTHORITY_DOMAINS
+    }
+  ];
+}
+
+/** Single-query helper used by probes and tests. */
 export function buildSearchQuery(intake: IssueIntake, household: Household | null, issueType: IssueType | null): string {
-  const place = household?.city ?? "UK";
-  const topic =
-    issueType === null || issueType === "boiler"
-      ? "boiler repair Gas Safe registered engineer"
-      : `${issueType} repair qualified tradesperson`;
-  return `${topic} ${place}`.slice(0, 280);
+  return buildResearchQueries(intake, household, issueType)[0]?.query ?? "household repair advice UK";
 }
 
 /** Keeps the plan inside the product contract without discarding an otherwise valid draft. */
@@ -561,11 +698,19 @@ function clamp(value: string, max: number): string {
   return `${trimmed.slice(0, max - 1).trimEnd()}\u2026`;
 }
 
+/** Two queries can return the same page: dedupe on host + path, ignoring query strings and anchors. */
 function dedupeSources(sources: Source[]): Source[] {
   const seen = new Set<string>();
   const unique: Source[] = [];
   for (const source of sources) {
-    const key = source.url.replace(/\/$/, "");
+    const key = (() => {
+      try {
+        const parsed = new URL(source.url);
+        return `${parsed.hostname.replace(/^www\./, "").toLowerCase()}${parsed.pathname.replace(/\/+$/, "").toLowerCase()}`;
+      } catch {
+        return source.url.replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
+      }
+    })();
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(source);

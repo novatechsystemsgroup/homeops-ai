@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { ZodError } from "zod";
 import { DomainError } from "@homeops/agent-core";
 import type { ApiMeta } from "@homeops/contracts";
@@ -21,6 +22,17 @@ export function createApp(container: Container): Hono {
       "request"
     );
   });
+
+  // The web app runs on a different port, so the browser needs CORS on the API.
+  app.use(
+    "/api/*",
+    cors({
+      origin: (origin) => (container.config.corsOrigins.includes(origin) ? origin : undefined),
+      allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+      allowHeaders: ["content-type", "idempotency-key"],
+      maxAge: 600
+    })
+  );
 
   app.get("/healthz", (c) =>
     c.json({

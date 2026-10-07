@@ -7,10 +7,16 @@ export function createFakeSearchProvider(options: { sources?: Source[]; fail?: b
   return {
     name: "fake-search",
     description: "Deterministic fixture research provider (no network calls).",
-    async search(_query, { limit }) {
+    async search(_query, { limit, includeDomains }) {
       if (options.delayMs) await new Promise((resolve) => setTimeout(resolve, options.delayMs));
       if (options.fail) throw new Error("fake search provider: simulated failure");
-      return (options.sources ?? FIXTURE_SOURCES).slice(0, limit);
+      const sources = options.sources ?? FIXTURE_SOURCES;
+      if (includeDomains && includeDomains.length > 0) {
+        const matching = sources.filter((source) => includeDomains.some((domain) => source.url.includes(domain)));
+        // Mirrors the real adapter: an over-narrow filter falls back to unfiltered results.
+        if (matching.length > 0) return matching.slice(0, limit);
+      }
+      return sources.slice(0, limit);
     }
   };
 }

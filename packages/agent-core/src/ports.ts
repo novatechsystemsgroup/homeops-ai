@@ -30,10 +30,19 @@ export interface ModelProvider {
   plan(input: PlanModelInput): Promise<PlanDraft>;
 }
 
+export interface SearchOptions {
+  limit: number;
+  location: string | null;
+  /** When set, providers should prefer (and if necessary restrict to) these domains. */
+  includeDomains?: string[];
+  /** Domains that never add value to a household plan (forums, video, social). */
+  excludeDomains?: string[];
+}
+
 export interface SearchProvider {
   readonly name: string;
   readonly description: string;
-  search(query: string, options: { limit: number; location: string | null }): Promise<Source[]>;
+  search(query: string, options: SearchOptions): Promise<Source[]>;
 }
 
 export interface PlanRepository {

@@ -56,3 +56,15 @@ export const BOILER_CLASSIFICATION: Classification = {
   needsClarification: false,
   questions: []
 };
+
+/** Used when the report is vague, so the clarifying round is demonstrable without a live model. */
+export const VAGUE_CLASSIFICATION: Classification = {
+  issueType: "other",
+  needsClarification: true,
+  questions: ["Is there any smell of gas, smoke or a visible leak?", "Do you still have hot water and heating?"]
+};
+
+/** A vague home report always triggers the clarifying round in the fake provider. */
+export function isVagueReport(description: string): boolean {
+  return description.trim().length < 60 || /not sure|something is wrong|unclear|problem with/i.test(description);
+}

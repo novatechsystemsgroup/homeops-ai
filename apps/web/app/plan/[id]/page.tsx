@@ -14,13 +14,25 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const envelope = await loadPlan(id);
   if (!envelope) notFound();
 
+  const open = envelope.openActions.length;
+  const done = envelope.plan.actions.length - open;
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-4">
-        <p className="text-sm text-slate-400">
-          Resuming a plan in a new session: the agent recovers the stored plan and its open actions, which is the cross-session context the Alexa+
-          experience is built on.
-        </p>
+        <section className="card p-4 text-sm text-slate-300">
+          <p>
+            Resuming a plan in a new session: the agent recovers the stored plan and its open actions. This is the cross-session context the Alexa+
+            experience is built on.
+          </p>
+          <p className="mt-2 flex flex-wrap gap-2 text-xs">
+            <span className="badge bg-slate-600/20 text-slate-200" data-testid="resume-open">{open} open</span>
+            <span className="badge bg-emerald-500/15 text-emerald-300">{done} done</span>
+            <a className="rounded-lg border border-slate-600 px-3 py-1 hover:border-slate-400" href="/alexa">
+              Back to the console
+            </a>
+          </p>
+        </section>
         <PlanCard plan={envelope.plan} readOnly />
       </div>
       <TracePanel events={envelope.trace} />

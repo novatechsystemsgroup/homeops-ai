@@ -44,14 +44,21 @@ export const ServerEnvSchema = z.object({
   SEARCH_ENABLED: booleanish.default(true),
   MODEL_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
   SEARCH_TIMEOUT_MS: z.coerce.number().int().min(1000).default(15_000),
-  SEARCH_RESULT_LIMIT: z.coerce.number().int().min(1).max(10).default(5)
+  // Measured: asking for more than a handful makes Tavily pad the list with trade
+  // directories, so the default stays deliberately small.
+  SEARCH_RESULT_LIMIT: z.coerce.number().int().min(1).max(10).default(5),
+  /** Comma-separated browser origins allowed to call the API (the web app is on another port). */
+  CORS_ORIGINS: z
+    .string()
+    .default("http://localhost:3000,http://127.0.0.1:3000,http://localhost:3100,http://127.0.0.1:3100")
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 
-export interface ServerConfig extends ServerEnv {
+export interface ServerConfig extends Omit<ServerEnv, "CORS_ORIGINS"> {
   repoRoot: string;
   databasePath: string;
+  corsOrigins: string[];
   /** True when a requested provider had no credentials and was replaced by the fake one. */
   degradedProviders: string[];
 }
@@ -79,6 +86,9 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env, repoRoot 
     MODEL_PROVIDER: modelProvider,
     SEARCH_PROVIDER: searchProvider,
     repoRoot,
+    corsOrigins: parsed.CORS_ORIGINS.split(",")
+      .map((origin) => origin.trim())
+      .filter((origin) => origin !== ""),
     databasePath: parsed.DB_PATH === ":memory:" ? ":memory:" : resolve(repoRoot, parsed.DB_PATH),
     degradedProviders
   };

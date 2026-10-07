@@ -50,6 +50,20 @@ describe("REST surface", () => {
     expect(body.providers.model).toBe("fake");
   });
 
+  it("allows the web app origin through CORS and refuses unknown origins", async () => {
+    const allowed = await app.request("/api/plans", {
+      method: "OPTIONS",
+      headers: { origin: "http://localhost:3000", "access-control-request-method": "POST" }
+    });
+    expect(allowed.headers.get("access-control-allow-origin")).toBe("http://localhost:3000");
+
+    const refused = await app.request("/api/plans", {
+      method: "OPTIONS",
+      headers: { origin: "https://evil.example", "access-control-request-method": "POST" }
+    });
+    expect(refused.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
   it("creates a plan for the boiler scenario", async () => {
     const householdResponse = await app.request("/api/households/demo");
     const household = (await householdResponse.json()) as { id: string };

@@ -39,7 +39,7 @@ const NO_CLARIFICATION: Classification = { issueType: "other", needsClarificatio
  * cap truncates the answer mid-object.
  */
 export const PLAN_OUTPUT_TOKENS = 4000;
-export const CLASSIFY_OUTPUT_TOKENS = 800;
+export const CLASSIFY_OUTPUT_TOKENS = 2000;
 
 export function createNebiusModelProvider(config: NebiusModelProviderConfig): ModelProvider {
   const client = config.client ?? createNebiusChatClient({ apiKey: config.apiKey, baseUrl: config.baseUrl });
