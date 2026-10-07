@@ -6,7 +6,7 @@ HomeOps AI runs as two containers on the existing Coolify server:
 Internet -> Coolify/Traefik (TLS)
               |
               +-- homeops.novatechsystem.co.uk        -> web container (Next.js, port 3000)
-                                                          |  /api/*  /mcp  /healthz  (server-side rewrites)
+                                                          |  /api/*  /mcp  /healthz  (server-side route handlers)
                                                           v
                                                        api container (Fastify-less Hono host, port 8787, internal only)
                                                           |
@@ -92,8 +92,15 @@ PORT=3000
 INTERNAL_API_URL=http://homeops-api:8787
 ```
 
-Coolify puts both applications on the same Docker network, so the service name
-`homeops-api` resolves. If Coolify renames the resource, adjust `INTERNAL_API_URL`.
+Coolify puts both applications on the same Docker network. The API carries an explicit
+network alias, `homeops-api` (`custom_network_aliases` on the application), because container
+names include a per-deployment suffix and cannot be used as a stable hostname.
+
+The proxy is implemented as **route handlers** (`app/api/[...path]`, `app/mcp`, `app/healthz`),
+not as Next rewrites: rewrite destinations are resolved during `next build` and would bake the
+build-time URL into the image — which is exactly how the first deployment ended up calling
+`127.0.0.1:8787`. Route handlers read `INTERNAL_API_URL` at request time and stream the
+upstream response, so MCP `text/event-stream` keeps working.
 
 ## Local parity
 
