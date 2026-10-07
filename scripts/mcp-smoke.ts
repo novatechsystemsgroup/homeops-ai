@@ -68,7 +68,11 @@ async function run(): Promise<void> {
 
   const tools = await client.listTools();
   const names = tools.tools.map((tool) => tool.name);
-  check(tools.tools.length === 6, `six tools discovered: ${names.join(", ")}`);
+  check(tools.tools.length === 8, `eight tools discovered: ${names.join(", ")}`);
+  check(
+    names.includes("get_maintenance_due") && names.includes("complete_maintenance_task"),
+    "the upkeep tools are exposed for voice clients"
+  );
 
   heading("3. build_repair_plan");
   const planResult = await client.callTool({ name: "build_repair_plan", arguments: { description: BOILER_DESCRIPTION } });
