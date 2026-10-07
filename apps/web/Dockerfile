@@ -6,12 +6,27 @@ ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@9.15.3 --activate
 
 WORKDIR /app
+
+# Manifests first: the install layer survives source changes.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/adapters-nebius/package.json packages/adapters-nebius/
+COPY packages/adapters-tavily/package.json packages/adapters-tavily/
+COPY packages/agent-core/package.json packages/agent-core/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/mcp-server/package.json packages/mcp-server/
+COPY packages/persistence/package.json packages/persistence/
+COPY packages/test-fixtures/package.json packages/test-fixtures/
+
+# pnpm installs the whole workspace even when filtered, so the native dependency of
+# the API package (better-sqlite3) needs a toolchain here as well.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+RUN pnpm install --frozen-lockfile --prod=false
+
 COPY . .
-# Install only the web app and its workspace dependencies. The full workspace would
-# pull in better-sqlite3 (used by the API) and fail without native build tools here.
-# Dev dependencies are still included: typescript and the Tailwind postcss plugin
-# are required to build.
-RUN pnpm install --frozen-lockfile --prod=false --filter "@homeops/web..."
 
 # Empty by default: the browser calls its own origin and the Next proxy forwards to the API.
 ARG NEXT_PUBLIC_API_BASE_URL=""
