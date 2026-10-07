@@ -135,6 +135,20 @@ describe("HomeOpsService.createPlan", () => {
     expect(result.clarificationRequired).toBe(false);
   });
 
+  it("asks each trade for the right register, never Gas Safe for a plumber", () => {
+    const leak = buildResearchQueries({ ...boilerIntakeFixture(), description: "Water is dripping under the kitchen sink." }, null, "plumbing");
+    expect(leak[0]?.query).toContain("WaterSafe");
+    expect(leak[0]?.query).not.toContain("Gas Safe");
+    expect(leak[0]?.includeDomains).toEqual(["watersafe.org.uk"]);
+
+    const electrics = buildResearchQueries({ ...boilerIntakeFixture(), description: "The socket sparked." }, null, "electrical");
+    expect(electrics[0]?.query).not.toContain("Gas Safe");
+    expect(electrics[0]?.includeDomains).toEqual(["electricalsafetyfirst.org.uk"]);
+
+    const gas = buildResearchQueries({ ...boilerIntakeFixture(), description: "The boiler is humming." }, null, "boiler");
+    expect(gas[0]?.query).toContain("Gas Safe");
+  });
+
   it("builds a register query and a symptom-based guidance query", () => {
     const intake = { ...boilerIntakeFixture(), description: "The boiler is making a loud humming noise before guests arrive." };
     const queries = buildResearchQueries(intake, null, "boiler");

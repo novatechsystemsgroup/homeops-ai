@@ -645,6 +645,7 @@ export function summariseSymptom(description: string): string | null {
   return null;
 }
 
+/** How to ask for the right trade, per problem type. Gas Safe only covers gas work. */
 const REGISTER_LABEL: Record<IssueType, string> = {
   boiler: "boiler engineer",
   heating: "heating engineer",
@@ -652,6 +653,15 @@ const REGISTER_LABEL: Record<IssueType, string> = {
   electrical: "electrician",
   appliance: "appliance repairer",
   other: "qualified tradesperson"
+};
+
+const REGISTER_QUERY: Record<IssueType, string> = {
+  boiler: "find a Gas Safe registered boiler engineer",
+  heating: "find a Gas Safe registered heating engineer",
+  plumbing: "find a WaterSafe approved plumber",
+  electrical: "find a registered electrician",
+  appliance: "find an appliance repairer",
+  other: "find a qualified tradesperson"
 };
 
 /** Forums, video and social posts are noise in a plan: they are never cited. */
@@ -680,7 +690,7 @@ export function buildResearchQueries(
   const registerDomains = REGISTER_DOMAINS[type];
 
   const registerQuery: ResearchQuery = {
-    query: `find a Gas Safe registered ${label} ${place}`.slice(0, 280),
+    query: `${REGISTER_QUERY[type]} ${place}`.slice(0, 280),
     // Two listings are enough to act on; the rest of the list is guidance.
     limit: 2
   };
