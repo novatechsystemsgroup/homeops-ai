@@ -115,6 +115,11 @@ Production runs the same images on the existing Coolify server — see
 [docs/deployment.md](docs/deployment.md) for the DNS record, the two applications, environment
 variables and post-deploy verification.
 
+## Written submissions
+
+- [Product feedback: Nebius Token Factory and NVIDIA Nemotron](docs/feedback-nebius.md)
+- [Product feedback: MCP and the Alexa+ surface](docs/feedback-amazon.md)
+
 ## Submission status
 
 Requirements verified against the Nebius × NVIDIA rules (mirror, as Devpost returns 503 to tooling):
