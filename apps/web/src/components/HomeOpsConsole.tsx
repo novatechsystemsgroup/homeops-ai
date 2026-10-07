@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentTraceEvent, Household, PlanAction, RepairPlan } from "@homeops/contracts";
-import { api, type ApiMetaResponse } from "@/lib/api";
+import { api, type ApiMetaResponse, type SafetyAssessmentResponse } from "@/lib/api";
 import { speak, speechSupported, stopSpeaking } from "@/lib/speech";
 import { useVoiceInput } from "@/lib/use-voice-input";
 import { PlanCard } from "./PlanCard";
@@ -55,6 +55,8 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
   const [speakReplies, setSpeakReplies] = useState(false);
   const [lastScenario, setLastScenario] = useState<ScenarioKey | null>(null);
   const [autoScenario, setAutoScenario] = useState<ScenarioKey | null>(null);
+  // Deterministic triage is shown as soon as it arrives, without waiting for the model.
+  const [triage, setTriage] = useState<SafetyAssessmentResponse["assessment"] | null>(null);
   // Resolved in an effect so the server and the first client render agree.
   const [canSpeak, setCanSpeak] = useState(false);
   const bootstrapped = useRef(false);
@@ -111,7 +113,15 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
       setNotice(null);
       setMessages((previous) => [...previous, { id: newId(), role: "user", text: description }]);
       setInput("");
+      setTriage(null);
       if (scenario) setLastScenario(scenario);
+
+      // Fire the deterministic triage first: it answers in milliseconds and is the
+      // first thing the user should see, long before the model finishes planning.
+      void api
+        .safetyGuidance(description)
+        .then((response) => setTriage(response.assessment))
+        .catch(() => undefined);
 
       try {
         const response = await api.createPlan({ householdId: household.id, description, clarificationAnswers });
@@ -257,6 +267,34 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
               {message.text}
             </div>
           ))}
+
+          {triage ? (
+            <div
+              data-testid="triage-banner"
+              className={`rounded-xl border p-3 text-sm ${
+                triage.urgency === "emergency"
+                  ? "border-rose-400/60 bg-rose-500/15 text-rose-100"
+                  : "border-slate-600 bg-slate-800/60 text-slate-200"
+              }`}
+            >
+              <p className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide">
+                <span>Safety triage</span>
+                <span className="badge bg-slate-950/40 text-slate-100" data-testid="triage-urgency">
+                  {triage.urgency.replace("_", " ")}
+                </span>
+                {triage.flags.length > 0 ? <span className="text-slate-300">flags: {triage.flags.join(", ")}</span> : null}
+              </p>
+              {triage.mandatoryGuidance.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-xs">
+                  {triage.mandatoryGuidance.map((line) => (
+                    <li key={line}>• {line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-xs text-slate-400">No emergency signs detected in what you described.</p>
+              )}
+            </div>
+          ) : null}
 
           {busy ? (
             <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3" data-testid="planning-progress">

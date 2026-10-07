@@ -7,9 +7,12 @@ test.describe("boiler scenario", () => {
 
     const started = Date.now();
     await runScenario(page, "boiler");
-    await expectPlanCard(page);
-    // Acceptance from the plan: first visual result in well under 15 seconds.
+
+    // First visual result is the deterministic triage; the plan follows.
+    await expect(page.getByTestId("triage-banner")).toBeVisible();
+    await expect(page.getByTestId("triage-urgency")).toHaveText(/needs attention/i);
     expect(Date.now() - started).toBeLessThan(15_000);
+    await expectPlanCard(page);
 
     await expect(planSummary(page)).toContainText(/boiler/i);
     await expect(page.getByTestId("plan-urgency")).toHaveText(/needs attention/i);

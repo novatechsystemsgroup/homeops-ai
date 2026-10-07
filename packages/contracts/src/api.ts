@@ -2,6 +2,7 @@ import { z } from "zod";
 import { BudgetBandSchema } from "./intake";
 import { HouseholdIdSchema, MemberIdSchema, PlanIdSchema } from "./ids";
 import { ActionStatusSchema, PlanActionSchema, RepairPlanSchema } from "./plan";
+import { SafetyAssessmentSchema } from "./safety";
 import { AgentTraceEventSchema } from "./trace";
 
 export const CreatePlanRequestSchema = z.object({
@@ -33,6 +34,15 @@ export const AssignActionRequestSchema = z.object({
 export const UpdateActionStatusRequestSchema = z.object({
   status: ActionStatusSchema,
   confirm: z.boolean()
+});
+
+/** Deterministic triage preview: no model, no research, safe to show instantly. */
+export const SafetyGuidanceRequestSchema = z.object({
+  description: z.string().min(3).max(2000)
+});
+
+export const SafetyGuidanceResponseSchema = z.object({
+  assessment: SafetyAssessmentSchema
 });
 
 export const PlanIdParamSchema = z.object({ planId: PlanIdSchema });

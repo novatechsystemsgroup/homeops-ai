@@ -5,8 +5,13 @@ test.describe("safety and conversation", () => {
   test("a gas report is handled deterministically and skips the model", async ({ page }) => {
     await openConsole(page, "/nebius");
     await runScenario(page, "gas");
-    await expectPlanCard(page);
 
+    // The deterministic triage is the first thing on screen, before any model call.
+    await expect(page.getByTestId("triage-banner")).toBeVisible();
+    await expect(page.getByTestId("triage-urgency")).toHaveText(/emergency/i);
+    await expect(page.getByTestId("triage-banner")).toContainText("0800 111 999");
+
+    await expectPlanCard(page);
     await expect(page.getByTestId("plan-urgency")).toHaveText(/emergency/i);
     await expect(page.getByTestId("plan-card")).toContainText("0800 111 999");
     await expect(page.getByTestId("plan-card")).toContainText("not an emergency service");

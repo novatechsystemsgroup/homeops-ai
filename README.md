@@ -44,7 +44,7 @@ Design rules:
 | Tavily runtime search | ~1.4–2.1 s, 3–5 sources with URLs |
 | End-to-end `pnpm demo:plan` | ~14 s, `degraded: false`, plan + sources + trace |
 | `pnpm mcp:smoke` | 401 without token, six tools discovered, confirmation semantics verified |
-| `pnpm check:live` (real browser) | plan card in 13-22 s, 7 sources (official register + manufacturer guides), no page errors |
+| `pnpm check:live` (real browser) | deterministic triage on screen in ~0.1 s, full plan in 13-22 s, 7 sources (official register + manufacturer guides), no page errors |
 | `pnpm test:e2e` | 6 browser flows in ~6 s: boiler scenario, assignment confirmation, resume, gas emergency, clarifying round, no-leak check |
 
 ### Research quality policy

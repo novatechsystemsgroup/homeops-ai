@@ -27,6 +27,13 @@ try {
 
   const started = Date.now();
   await page.getByTestId("scenario-boiler").click();
+
+  // First visual result: deterministic triage, no model involved.
+  await page.getByTestId("triage-banner").waitFor({ timeout: 5_000 });
+  const triageMs = Date.now() - started;
+  const triageUrgency = await page.getByTestId("triage-urgency").innerText();
+
+  // Full plan: model planning plus research.
   await page.getByTestId("plan-card").waitFor({ timeout: MAX_MS });
   const elapsedMs = Date.now() - started;
 
@@ -39,10 +46,13 @@ try {
 
   console.log("");
   console.log("Plan: " + summary);
-  console.log("  urgency=" + urgency + " actions=" + actions + " sources=" + sources + " elapsed=" + elapsedMs + "ms");
+  console.log("  urgency=" + urgency + " actions=" + actions + " sources=" + sources);
+  console.log("  triage=" + triageMs + "ms, full plan=" + elapsedMs + "ms");
   console.log("");
 
-  report(elapsedMs < 15_000, "first visual result within 15s (got " + elapsedMs + "ms)");
+  report(triageMs < 3_000, "first visual result (deterministic triage) within 3s (got " + triageMs + "ms)");
+  report(triageUrgency.toLowerCase().includes("needs attention"), "triage banner shows the urgency");
+  report(elapsedMs < MAX_MS, "full plan within the budget (got " + elapsedMs + "ms)");
   report(urgency.toLowerCase().includes("needs attention"), "urgency is needs attention");
   report(actions >= 1, "plan has " + actions + " action(s)");
   report(sources >= 3, "sources attached (" + sources + ")");

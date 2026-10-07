@@ -7,7 +7,7 @@ gets its own recording of the same product with a different emphasis.
 
 | Time | Shot | What is on screen |
 |---|---|---|
-| 0:00-0:12 | The result first | Landing page, click **Boiler before the weekend**. The plan card appears: urgency, actions, owners, sources. Voice-over states problem and outcome in one sentence. |
+| 0:00-0:12 | The result first | Landing page, click **Boiler before the weekend**. The safety triage appears in about 0.1 s, then the plan card with urgency, actions, owners and sources. Voice-over states problem and outcome in one sentence. |
 | 0:12-0:35 | The conversation | The console: the spoken report, then the agent's reply. Optionally dictate with the **Voice** button. |
 | 0:35-1:00 | The plan | Scroll the plan card: actions with rationale, the owner select, the "Waiting for your confirmation" box. Assign an action, confirmation dialog, **Confirm**. |
 | 1:00-1:20 | Safety, not vibes | Click **Gas emergency**. The deterministic banner shows 0800 111 999 and the plan marks research as skipped. "The model is not allowed to decide this." |
@@ -39,7 +39,7 @@ gets its own recording of the same product with a different emphasis.
 
 | Criterion | How it is verified |
 |---|---|
-| First visual result under 15 s | E2E asserts the plan card appears in under 15 s against the fake providers; with live Nebius the measured end-to-end is 10-15 s. |
+| First visual result under 15 s | The deterministic triage banner renders in ~0.1 s and the E2E asserts it; the full model-written plan follows in 13-22 s (measured live, `pnpm check:live`). |
 | A user can complete the scenario alone in under 90 s | The landing page lists the five steps, and the console exposes every next action as a button. |
 | No prompt, key or chain-of-thought on screen | E2E scans the rendered HTML for key patterns and for the system prompt text. |
 | Confirmations and safety limits are visible | The plan card always renders the safety banner and the "Waiting for your confirmation" block. |

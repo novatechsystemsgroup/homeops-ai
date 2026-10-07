@@ -58,8 +58,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export interface SafetyAssessmentResponse {
+  assessment: {
+    urgency: RepairPlan["urgency"];
+    flags: RepairPlan["safetyFlags"];
+    ruleIds: string[];
+    mandatoryGuidance: string[];
+    callEmergencyServices: boolean;
+  };
+}
+
 export const api = {
   meta: () => request<ApiMetaResponse>("/api/meta"),
+  safetyGuidance: (description: string) =>
+    request<SafetyAssessmentResponse>("/api/safety-guidance", { method: "POST", body: JSON.stringify({ description }) }),
   demoHousehold: () => request<Household>("/api/households/demo"),
   createPlan: (body: { householdId: string; description: string; clarificationAnswers?: string[] }) =>
     request<CreatePlanResponse>("/api/plans", { method: "POST", body: JSON.stringify(body) }),

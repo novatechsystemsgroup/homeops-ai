@@ -7,6 +7,7 @@ import { APP_VERSION, type Container } from "./container";
 import { domainErrorResponse, problemResponse, validationDetail } from "./http/errors";
 import { householdsRoutes } from "./routes/households";
 import { plansRoutes } from "./routes/plans";
+import { safetyRoutes } from "./routes/safety";
 
 export { createLogger } from "./http/logger";
 export type { Logger } from "./http/logger";
@@ -55,6 +56,7 @@ export function createApp(container: Container): Hono {
   });
 
   app.route("/api/plans", plansRoutes(container));
+  app.route("/api/safety-guidance", safetyRoutes(container));
   app.route("/api/households", householdsRoutes(container));
 
   app.notFound((c) => problemResponse(c, { status: 404, code: "not_found", detail: `No route for ${c.req.method} ${c.req.path}.` }));
