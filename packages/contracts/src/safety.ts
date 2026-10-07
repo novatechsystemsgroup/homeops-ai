@@ -11,7 +11,8 @@ export const SafetyFlagSchema = z.enum([
   "vulnerable_occupant",
   "appliance_noise",
   "active_water_leak",
-  "appliance_fault"
+  "appliance_fault",
+  "security_risk"
 ]);
 
 /** Result of the deterministic safety triage. Never produced by a language model. */

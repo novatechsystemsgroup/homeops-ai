@@ -8,6 +8,7 @@ import {
   FIRE_GUIDANCE,
   GAS_GUIDANCE,
   HEAT_LOSS_GUIDANCE,
+  SECURITY_GUIDANCE,
   WATER_LEAK_GUIDANCE
 } from "./copy";
 
@@ -102,6 +103,18 @@ export const SAFETY_RULES: SafetyRule[] = [
       /\b(?:masina de spalat|mașină de spălat|frigider|cuptor)\b[^.!?]{0,40}\b(?:nu|defect|eroare|scurger)\b/i
     ],
     guidance: APPLIANCE_FAULT_GUIDANCE
+  },
+  {
+    id: "SECURITY_001",
+    flag: "security_risk",
+    urgency: "needs_attention",
+    callEmergencyServices: false,
+    patterns: [
+      /\b(?:lock|door handle|window latch|key|keys|deadbolt|yale|pătruns|spart)\b[^.!?]{0,60}\b(?:broken|stuck|jammed|not (?:lock|close)|will not|won'?t|does not|doesn'?t|snapped|lost|broke)\b/i,
+      /\b(?:lock|door|window)\b[^.!?]{0,40}\b(?:does not lock|won'?t lock|will not lock|not locking|stuck shut|broken)\b/i,
+      /\b(?:locksmith|yala|broasc[ăa]|ușa|usa)\b[^.!?]{0,40}\b(?:nu se (?:încuie|incuie)|defect|blocat)\b/i
+    ],
+    guidance: SECURITY_GUIDANCE
   },
   {
     id: "VULNERABLE_001",

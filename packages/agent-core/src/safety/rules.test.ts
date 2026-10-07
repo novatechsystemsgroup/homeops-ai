@@ -113,6 +113,13 @@ describe("deterministic safety triage", () => {
     expect(assessment.mandatoryGuidance.join(" ")).toMatch(/switch the appliance off|model number/i);
   });
 
+  it("treats a door that will not lock as a security risk, not a routine job", () => {
+    const assessment = assessSafety({ description: "The front door lock turns but does not lock properly.", occupancyNotes: null });
+    expect(assessment.urgency).toBe("needs_attention");
+    expect(assessment.flags).toContain("security_risk");
+    expect(assessment.mandatoryGuidance.join(" ")).toMatch(/security risk|locksmith/i);
+  });
+
   it("returns monitor for a routine request with no risk signals", () => {
     const assessment = assessSafety({ description: "I would like to plan a yearly boiler service.", occupancyNotes: null });
     expect(assessment.urgency).toBe("monitor");

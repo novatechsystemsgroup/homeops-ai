@@ -38,6 +38,11 @@ export const APPLIANCE_FAULT_GUIDANCE = [
   "Unplug before moving the appliance, and never open a gas appliance yourself."
 ];
 
+export const SECURITY_GUIDANCE = [
+  "A door or window that will not lock is a security risk: secure it as well as you can tonight, do not leave the property unlocked, and book a locksmith.",
+  "If you are locked out or someone is at risk, call 999 rather than waiting for a tradesperson."
+];
+
 export const BOILER_NOISE_GUIDANCE = [
   "Boiler noise without gas, smoke or a visible leak is usually not an emergency, but it should be inspected before it becomes one.",
   "Do not open the boiler casing; only a Gas Safe registered engineer should work on a gas appliance."
