@@ -93,7 +93,7 @@ a separate Next build directory, so it can run next to a normal `pnpm dev` sessi
 | `search_service_options` | runtime research through Tavily | no |
 | `assign_household_task` | assign a plan action to a household member | **yes** |
 | `get_plan_status` | current plan and open actions | no |
-| `update_action_status` | mark an action open/assigned/done | **yes** |
+| `update_action_status, get_maintenance_due, complete_maintenance_task` | mark an action open/assigned/done | **yes** |
 
 ## Safety and privacy
 

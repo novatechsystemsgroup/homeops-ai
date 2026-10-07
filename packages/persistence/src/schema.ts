@@ -64,6 +64,36 @@ export const traceEvents = sqliteTable("trace_events", {
   summary: text("summary").notNull()
 });
 
+export const maintenanceTasks = sqliteTable("maintenance_tasks", {
+  id: text("id").primaryKey(),
+  householdId: text("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  instructions: text("instructions").notNull(),
+  category: text("category").notNull(),
+  cadence: text("cadence").notNull(),
+  nextDueAt: text("next_due_at").notNull(),
+  lastCompletedAt: text("last_completed_at"),
+  sourcePlanId: text("source_plan_id"),
+  createdAt: text("created_at").notNull()
+});
+
+export const evidence = sqliteTable("evidence", {
+  id: text("id").primaryKey(),
+  planId: text("plan_id")
+    .notNull()
+    .references(() => plans.id, { onDelete: "cascade" }),
+  actionId: text("action_id"),
+  kind: text("kind").notNull(),
+  contentType: text("content_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  originalName: text("original_name"),
+  note: text("note"),
+  metadataStripped: integer("metadata_stripped", { mode: "boolean" }).notNull(),
+  createdAt: text("created_at").notNull()
+});
+
 export const preferences = sqliteTable(
   "preferences",
   {

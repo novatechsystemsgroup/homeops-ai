@@ -1,10 +1,12 @@
 import type {
   AgentTraceEvent,
   Classification,
+  Evidence,
   Household,
   HouseholdMember,
   IssueIntake,
   IssueType,
+  MaintenanceTask,
   PlanDraft,
   RepairPlan,
   SafetyAssessment,
@@ -52,6 +54,21 @@ export interface PlanRepository {
   savePlan(plan: RepairPlan): Promise<void>;
   getPlan(planId: string): Promise<RepairPlan | null>;
   listOpenPlans(householdId: string): Promise<RepairPlan[]>;
+}
+
+export interface MaintenanceRepository {
+  list(householdId: string): Promise<MaintenanceTask[]>;
+  get(taskId: string): Promise<MaintenanceTask | null>;
+  save(task: MaintenanceTask): Promise<void>;
+  delete(taskId: string): Promise<boolean>;
+}
+
+export interface EvidenceRepository {
+  save(record: Evidence, bytes: Buffer): Promise<void>;
+  get(evidenceId: string): Promise<{ record: Evidence; bytes: Buffer } | null>;
+  listForPlan(planId: string): Promise<Evidence[]>;
+  delete(evidenceId: string): Promise<boolean>;
+  deleteForHousehold(householdId: string): Promise<number>;
 }
 
 export interface HouseholdRepository {

@@ -1,11 +1,22 @@
 import { randomUUID } from "node:crypto";
-import { HomeOpsService, type ModelProvider, type SearchProvider } from "@homeops/agent-core";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import {
+  HomeOpsService,
+  buildStarterMaintenance,
+  type EvidenceRepository,
+  type MaintenanceRepository,
+  type ModelProvider,
+  type SearchProvider
+} from "@homeops/agent-core";
 import { createNebiusModelProvider } from "@homeops/adapters-nebius";
 import { createTavilySearchProvider } from "@homeops/adapters-tavily";
 import {
   DEMO_HOUSEHOLD,
   createDatabase,
+  createEvidenceRepository,
   createHouseholdStore,
+  createMaintenanceRepository,
   createPlanRepository,
   createTraceRepository,
   seedDemoHousehold,
@@ -26,6 +37,8 @@ export interface Container {
   readonly handle: DatabaseHandle;
   readonly households: HouseholdStore;
   readonly plans: PlanStore;
+  readonly maintenance: MaintenanceRepository;
+  readonly evidence: EvidenceRepository;
   readonly service: HomeOpsService;
   readonly model: ModelProvider;
   readonly search: SearchProvider;
@@ -38,6 +51,10 @@ export function createContainer(config: ServerConfig, logger: Logger): Container
   const handle = createDatabase(config.databasePath);
   const households = createHouseholdStore(handle);
   const plans = createPlanRepository(handle);
+  const maintenance = createMaintenanceRepository(handle);
+  // Attachment bytes live next to the database, so they follow the same volume.
+  const dataDir = config.databasePath === ":memory:" ? join(tmpdir(), "homeops-demo") : dirname(config.databasePath);
+  const evidence = createEvidenceRepository(handle, dataDir);
 
   const ids = { uuid: () => randomUUID() };
   const clock = { now: () => new Date() };
@@ -66,6 +83,8 @@ export function createContainer(config: ServerConfig, logger: Logger): Container
     search,
     plans,
     households,
+    maintenance,
+    evidence,
     trace,
     clock,
     ids,
@@ -85,6 +104,8 @@ export function createContainer(config: ServerConfig, logger: Logger): Container
     handle,
     households,
     plans,
+    maintenance,
+    evidence,
     service,
     model,
     search,
@@ -92,8 +113,16 @@ export function createContainer(config: ServerConfig, logger: Logger): Container
 
     async ensureDemoHousehold() {
       const existing = await households.getHousehold(DEMO_HOUSEHOLD.id);
-      if (existing) return existing;
-      return seedDemoHousehold(households, clock.now().toISOString());
+      const household = existing ?? (await seedDemoHousehold(households, clock.now().toISOString()));
+
+      // A home without upkeep reminders is the unrealistic case: give the demo
+      // household the smoke alarm test, the boiler service and the autumn job.
+      if ((await maintenance.list(household.id)).length === 0) {
+        for (const task of buildStarterMaintenance(household.id, clock.now())) {
+          await maintenance.save(task);
+        }
+      }
+      return household;
     },
 
     close() {

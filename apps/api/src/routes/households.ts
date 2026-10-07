@@ -28,7 +28,10 @@ export function householdsRoutes(container: Container): Hono {
   });
 
   app.delete("/:householdId", async (c) => {
-    const deleted = await container.households.deleteHousehold(c.req.param("householdId"));
+    const householdId = c.req.param("householdId");
+    // Attachment bytes live outside SQLite, so they are removed before the cascade.
+    await container.evidence.deleteForHousehold(householdId);
+    const deleted = await container.households.deleteHousehold(householdId);
     if (!deleted) return problemResponse(c, { status: 404, code: "household_not_found", detail: "No household exists with that id." });
     return c.json({ deleted: true, householdId: c.req.param("householdId") });
   });

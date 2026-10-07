@@ -1,4 +1,14 @@
-import type { AgentTraceEvent, ApiMeta, Household, PlanAction, RepairPlan } from "@homeops/contracts";
+import type {
+  AgentTraceEvent,
+  ApiMeta,
+  EvidenceKind,
+  EvidenceWithUrl,
+  Household,
+  MaintenanceCadence,
+  MaintenanceTaskView,
+  PlanAction,
+  RepairPlan
+} from "@homeops/contracts";
 
 // An explicitly empty value means "same origin": in production the web container
 // proxies /api to the API container, so no cross-origin traffic exists at all.
@@ -62,6 +72,39 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export interface MaintenanceListResponse {
+  householdId: string;
+  tasks: MaintenanceTaskView[];
+}
+
+export interface MaintenanceMutationResponse {
+  status: "ok" | "confirmation_required";
+  task?: MaintenanceTaskView;
+  message?: string;
+  proposedChanges?: string[];
+}
+
+export interface EvidenceListResponse {
+  planId: string;
+  evidence: EvidenceWithUrl[];
+}
+
+/** Multipart upload: the browser must set the content-type boundary itself. */
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, { method: "POST", body: form, cache: "no-store" });
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const problem = (await response.json()) as { detail?: string; title?: string };
+      detail = problem.detail ?? problem.title ?? detail;
+    } catch {
+      // keep the status text
+    }
+    throw new ApiRequestError(detail || "Upload failed", response.status);
+  }
+  return (await response.json()) as T;
+}
+
 export interface SafetyAssessmentResponse {
   assessment: {
     urgency: RepairPlan["urgency"];
@@ -90,5 +133,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status, confirm: true })
     }),
-  deleteDemoData: (householdId: string) => request<{ deleted: boolean }>(`/api/households/${householdId}`, { method: "DELETE" })
+  deleteDemoData: (householdId: string) => request<{ deleted: boolean }>(`/api/households/${householdId}`, { method: "DELETE" }),
+
+  maintenance: (householdId: string) => request<MaintenanceListResponse>(`/api/maintenance?householdId=${encodeURIComponent(householdId)}`),
+  createMaintenance: (body: { householdId: string; title: string; cadence: MaintenanceCadence; instructions?: string; nextDueAt?: string | null }) =>
+    request<{ task: MaintenanceTaskView }>("/api/maintenance", { method: "POST", body: JSON.stringify(body) }),
+  completeMaintenance: (taskId: string, confirm: boolean) =>
+    request<MaintenanceMutationResponse>(`/api/maintenance/${taskId}/complete`, { method: "POST", body: JSON.stringify({ confirm }) }),
+  deleteMaintenance: (taskId: string) => request<{ deleted: boolean }>(`/api/maintenance/${taskId}`, { method: "DELETE" }),
+
+  evidence: (planId: string) => request<EvidenceListResponse>(`/api/evidence/plan/${planId}`),
+  uploadEvidence: (planId: string, input: { actionId: string | null; kind: EvidenceKind; file: File | Blob; filename: string; note?: string | null }) => {
+    const form = new FormData();
+    form.set("kind", input.kind);
+    if (input.actionId) form.set("actionId", input.actionId);
+    if (input.note) form.set("note", input.note);
+    form.set("file", input.file, input.filename);
+    return requestForm<{ evidence: EvidenceWithUrl }>(`/api/evidence/plan/${planId}`, form);
+  },
+  deleteEvidence: (evidenceId: string) => request<{ deleted: boolean }>(`/api/evidence/${evidenceId}`, { method: "DELETE" }),
+  evidenceUrl: (evidenceId: string) => `${API_BASE}/api/evidence/${evidenceId}`
 };

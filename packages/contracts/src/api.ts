@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { EvidenceWithUrlSchema } from "./evidence";
 import { BudgetBandSchema } from "./intake";
+import { MaintenanceTaskViewSchema } from "./maintenance";
 import { HouseholdIdSchema, MemberIdSchema, PlanIdSchema } from "./ids";
 import { ActionStatusSchema, PlanActionSchema, RepairPlanSchema } from "./plan";
 import { SafetyAssessmentSchema } from "./safety";
@@ -44,6 +46,28 @@ export const SafetyGuidanceRequestSchema = z.object({
 export const SafetyGuidanceResponseSchema = z.object({
   assessment: SafetyAssessmentSchema
 });
+
+export const CompleteMaintenanceRequestSchema = z.object({ confirm: z.boolean() });
+
+export const MaintenanceListResponseSchema = z.object({
+  householdId: HouseholdIdSchema,
+  tasks: z.array(MaintenanceTaskViewSchema)
+});
+
+export const MaintenanceTaskResponseSchema = z.object({ task: MaintenanceTaskViewSchema });
+export const MaintenanceMutationResponseSchema = z.object({
+  status: z.enum(["ok", "confirmation_required"]),
+  task: MaintenanceTaskViewSchema.optional(),
+  message: z.string().optional(),
+  proposedChanges: z.array(z.string()).optional()
+});
+
+export const EvidenceListResponseSchema = z.object({
+  planId: PlanIdSchema,
+  evidence: z.array(EvidenceWithUrlSchema)
+});
+
+export const EvidenceResponseSchema = z.object({ evidence: EvidenceWithUrlSchema });
 
 export const PlanIdParamSchema = z.object({ planId: PlanIdSchema });
 export const HouseholdIdParamSchema = z.object({ householdId: HouseholdIdSchema });

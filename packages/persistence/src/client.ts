@@ -79,9 +79,38 @@ CREATE TABLE IF NOT EXISTS preferences (
   PRIMARY KEY (household_id, key)
 );
 
+CREATE TABLE IF NOT EXISTS maintenance_tasks (
+  id TEXT PRIMARY KEY,
+  household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  category TEXT NOT NULL,
+  cadence TEXT NOT NULL,
+  next_due_at TEXT NOT NULL,
+  last_completed_at TEXT,
+  source_plan_id TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS evidence (
+  id TEXT PRIMARY KEY,
+  plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+  action_id TEXT,
+  kind TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  byte_size INTEGER NOT NULL,
+  original_name TEXT,
+  note TEXT,
+  metadata_stripped INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_plan_actions_plan ON plan_actions(plan_id);
 CREATE INDEX IF NOT EXISTS idx_trace_events_plan ON trace_events(plan_id);
 CREATE INDEX IF NOT EXISTS idx_plans_household ON plans(household_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_household ON maintenance_tasks(household_id, next_due_at);
+CREATE INDEX IF NOT EXISTS idx_evidence_plan ON evidence(plan_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_action ON evidence(action_id);
 `;
 
 export function createDatabase(dbPath: string): DatabaseHandle {

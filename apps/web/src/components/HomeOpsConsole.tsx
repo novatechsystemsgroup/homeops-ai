@@ -7,6 +7,7 @@ import { SCENARIOS, scenarioById, type Scenario } from "@/lib/scenarios";
 import { speak, speechSupported, stopSpeaking } from "@/lib/speech";
 import { useVoiceInput } from "@/lib/use-voice-input";
 import { HelpPanel } from "./HelpPanel";
+import { MaintenancePanel } from "./MaintenancePanel";
 import { PlanCard } from "./PlanCard";
 import { TracePanel } from "./TracePanel";
 
@@ -58,6 +59,7 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
   const [pendingScenario, setPendingScenario] = useState<Scenario | null>(null);
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [lastRequest, setLastRequest] = useState<{ text: string; scenario: Scenario | null } | null>(null);
+  const [maintenanceRefresh, setMaintenanceRefresh] = useState(0);
   const bootstrapped = useRef(false);
 
   const onTranscript = useCallback((text: string) => setInput(text), []);
@@ -128,6 +130,8 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
         const response = await api.createPlan({ householdId: household.id, description, clarificationAnswers });
         setPlan(response.plan);
         setTrace(response.trace);
+        // A finished plan is a good moment to look at the recurring upkeep again.
+        setMaintenanceRefresh((value) => value + 1);
 
         if (response.clarificationRequired) {
           setQuestions(response.plan.clarifyingQuestions);
@@ -236,6 +240,29 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
     setError(null);
     setNotice(null);
   }, []);
+
+  const answerUpkeep = useCallback(async () => {
+    if (!household) return;
+    setNotice(null);
+    try {
+      const response = await api.maintenance(household.id);
+      const due = response.tasks.filter((task) => task.state !== "scheduled");
+      if (due.length === 0) {
+        say("Nothing needs doing around the house right now. Everything recurring is still in date.");
+        return;
+      }
+      const spoken = due
+        .map((task) =>
+          task.state === "overdue"
+            ? `${task.title} (overdue by ${Math.abs(task.daysUntilDue)} days)`
+            : `${task.title} (due in ${task.daysUntilDue} days)`
+        )
+        .join("; ");
+      say(`${due.length} thing${due.length === 1 ? "" : "s"} to do at home: ${spoken}. You can mark any of them done in the Home upkeep panel.`);
+    } catch (caught) {
+      setError(describe(caught));
+    }
+  }, [household, say]);
 
   const openActions = plan ? plan.actions.filter((action) => action.status !== "done").length : 0;
   const doneActions = plan ? plan.actions.length - openActions : 0;
@@ -455,6 +482,9 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
             <button type="button" className="rounded-lg border border-slate-700 px-3 py-1.5 hover:border-emerald-400" onClick={() => void checkPlanLater()} disabled={busy} data-testid="check-plan">
               Did we fix it?
             </button>
+            <button type="button" className="rounded-lg border border-slate-700 px-3 py-1.5 hover:border-amber-400" onClick={() => void answerUpkeep()} data-testid="ask-upkeep">
+              What needs doing at home?
+            </button>
             {household ? (
               <button
                 type="button"
@@ -485,7 +515,13 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
                 Open plan page
               </a>
             </div>
-            <PlanCard plan={plan} members={household?.members ?? []} onAssign={onAssign} onStatusChange={onStatusChange} />
+            <PlanCard
+              plan={plan}
+              members={household?.members ?? []}
+              onAssign={onAssign}
+              onStatusChange={onStatusChange}
+              onNotice={setNotice}
+            />
           </div>
         ) : (
           <section className="card p-5 text-sm text-slate-400">
@@ -497,6 +533,7 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
             </ol>
           </section>
         )}
+        {household ? <MaintenancePanel householdId={household.id} refreshToken={maintenanceRefresh} onNotice={setNotice} /> : null}
         {variant === "nebius" ? <TracePanel events={trace} meta={meta} /> : null}
       </div>
     </div>

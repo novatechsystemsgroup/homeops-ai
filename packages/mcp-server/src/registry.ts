@@ -2,6 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { HomeOpsService } from "@homeops/agent-core";
 import { registerAssignHouseholdTask } from "./tools/assign-household-task";
 import { registerBuildRepairPlan } from "./tools/build-repair-plan";
+import { registerCompleteMaintenanceTask } from "./tools/complete-maintenance-task";
+import { registerGetMaintenanceDue } from "./tools/get-maintenance-due";
 import { registerGetPlanStatus } from "./tools/get-plan-status";
 import { registerGetSafetyGuidance } from "./tools/get-safety-guidance";
 import { registerSearchServiceOptions } from "./tools/search-service-options";
@@ -14,7 +16,9 @@ export const TOOL_NAMES = [
   "search_service_options",
   "assign_household_task",
   "get_plan_status",
-  "update_action_status"
+  "update_action_status",
+  "get_maintenance_due",
+  "complete_maintenance_task"
 ] as const;
 
 export function registerTools(server: McpServer, service: HomeOpsService): void {
@@ -24,4 +28,6 @@ export function registerTools(server: McpServer, service: HomeOpsService): void 
   registerAssignHouseholdTask(server, service);
   registerGetPlanStatus(server, service);
   registerUpdateActionStatus(server, service);
+  registerGetMaintenanceDue(server, service);
+  registerCompleteMaintenanceTask(server, service);
 }

@@ -5,7 +5,9 @@ import { DomainError } from "@homeops/agent-core";
 import type { ApiMeta } from "@homeops/contracts";
 import { APP_VERSION, type Container } from "./container";
 import { domainErrorResponse, problemResponse, validationDetail } from "./http/errors";
+import { evidenceRoutes } from "./routes/evidence";
 import { householdsRoutes } from "./routes/households";
+import { maintenanceRoutes } from "./routes/maintenance";
 import { plansRoutes } from "./routes/plans";
 import { safetyRoutes } from "./routes/safety";
 
@@ -58,6 +60,8 @@ export function createApp(container: Container): Hono {
   app.route("/api/plans", plansRoutes(container));
   app.route("/api/safety-guidance", safetyRoutes(container));
   app.route("/api/households", householdsRoutes(container));
+  app.route("/api/maintenance", maintenanceRoutes(container));
+  app.route("/api/evidence", evidenceRoutes(container));
 
   app.notFound((c) => problemResponse(c, { status: 404, code: "not_found", detail: `No route for ${c.req.method} ${c.req.path}.` }));
 

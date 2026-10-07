@@ -63,7 +63,37 @@ Steps in order, each with a status and a duration: intake, deterministic triage,
 (NVIDIA Nemotron on Nebius), Tavily research, persistence, confirmation. Model time and research time are
 totalled, and failed steps are counted. No raw prompts and no chain-of-thought are ever shown.
 
-## 7. Trust and limits
+## 7. Home upkeep (recurring jobs)
+
+The **Home upkeep** panel keeps the jobs that come back: the monthly alarm test, the annual boiler
+service, the gutters before winter.
+
+| What you see | What it means |
+|---|---|
+| "overdue by 12 days" | The due date has passed. |
+| "due today" / "due in 9 days" | Due now or inside the next fortnight. |
+| "scheduled" | Comfortably in the future; nothing to do yet. |
+| **Mark done** | Asks for confirmation, records today as the last completion, and moves the next due date forward by the cadence (monthly, every 3, 6 or 12 months). |
+| **Add reminder** | Creates a recurring task with the cadence you pick; it becomes due immediately unless you set a date. |
+
+Ask the agent **"What needs doing at home?"** in the console: it answers from the stored list and reads the
+answer out loud when spoken replies are on. Voice clients get the same through the MCP tool
+`get_maintenance_due`.
+
+## 8. Repair evidence (photos, voice notes, notes)
+
+Every action in a plan can carry proof:
+
+- **Photo** - the leak, the error code on the display, the finished repair. JPEG metadata (including GPS
+  location) is stripped before the bytes are stored.
+- **Voice note** - what the engineer said, recorded in the browser.
+- **Note** - a line of text: the part number, the quote, what was agreed.
+
+Attachments appear under the action with a thumbnail or player, and the plan header shows how many are
+attached. **Remove** deletes the row and the file. Nothing is uploaded anywhere else: attachments live on the
+same server as the plan, and deleting the demo data deletes them too.
+
+## 9. Trust and limits
 
 - Demo data is synthetic: a fictional household in Bristol. Delete it with **Delete demo data**.
 - Every fact sourced from research keeps its URL and retrieval time; prices and availability are never invented.

@@ -4,6 +4,8 @@ export * from "./intake";
 export * from "./safety";
 export * from "./plan";
 export * from "./model";
+export * from "./maintenance";
+export * from "./evidence";
 export * from "./trace";
 export * from "./api";
 export * from "./mcp";

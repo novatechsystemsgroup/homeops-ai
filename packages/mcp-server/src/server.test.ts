@@ -2,7 +2,17 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { HomeOpsService } from "@homeops/agent-core";
-import { createDatabase, createHouseholdStore, createPlanRepository, createTraceRepository, seedDemoHousehold, DEMO_HOUSEHOLD } from "@homeops/persistence";
+import { tmpdir } from "node:os";
+import {
+  DEMO_HOUSEHOLD,
+  createDatabase,
+  createEvidenceRepository,
+  createHouseholdStore,
+  createMaintenanceRepository,
+  createPlanRepository,
+  createTraceRepository,
+  seedDemoHousehold
+} from "@homeops/persistence";
 import { BOILER_DESCRIPTION, createFakeModelProvider, createFakeSearchProvider } from "@homeops/test-fixtures";
 import { buildMcpServer } from "./server";
 import { TOOL_NAMES } from "./registry";
@@ -15,6 +25,8 @@ function createService(): HomeOpsService {
   const handle = createDatabase(":memory:");
   const households = createHouseholdStore(handle);
   const plans = createPlanRepository(handle);
+  const maintenance = createMaintenanceRepository(handle);
+  const evidence = createEvidenceRepository(handle, tmpdir());
   const trace = createTraceRepository(handle, ids, clock);
   void seedDemoHousehold(households, clock.now().toISOString());
   return new HomeOpsService({
@@ -22,6 +34,8 @@ function createService(): HomeOpsService {
     search: createFakeSearchProvider(),
     plans,
     households,
+    maintenance,
+    evidence,
     trace,
     clock,
     ids,
@@ -60,6 +74,8 @@ describe("MCP surface", () => {
   it("discovers exactly the six household tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([...TOOL_NAMES].sort());
+    expect(TOOL_NAMES).toContain("get_maintenance_due");
+    expect(TOOL_NAMES).toContain("complete_maintenance_task");
     for (const tool of tools) expect(tool.description && tool.description.length).toBeGreaterThan(20);
   });
 

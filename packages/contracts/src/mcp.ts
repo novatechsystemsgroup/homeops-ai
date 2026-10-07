@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { HouseholdIdSchema, MemberIdSchema, PlanIdSchema } from "./ids";
+import { MaintenanceTaskViewSchema } from "./maintenance";
 import { ActionStatusSchema, PlanActionSchema, RepairPlanSchema, ResearchStatusSchema, SourceSchema } from "./plan";
 import { SafetyAssessmentSchema } from "./safety";
 
@@ -52,6 +53,26 @@ export const TaskMutationOutputSchema = z.object({
 });
 
 export const AssignHouseholdTaskOutputSchema = TaskMutationOutputSchema;
+
+export const GetMaintenanceDueInputSchema = z.object({
+  householdId: HouseholdIdSchema.nullable().optional().describe("Household to check. Defaults to the demo household."),
+  includeScheduled: z.boolean().optional().describe("Also return tasks that are not due yet.")
+});
+export const GetMaintenanceDueOutputSchema = z.object({
+  tasks: z.array(MaintenanceTaskViewSchema),
+  spokenSummary: z.string().min(1).max(300).describe("One sentence a voice client can read out.")
+});
+
+export const CompleteMaintenanceTaskInputSchema = z.object({
+  taskId: z.uuid(),
+  confirm: z.boolean().describe("Must be true. Without it the tool returns confirmation_required.")
+});
+export const CompleteMaintenanceTaskOutputSchema = z.object({
+  status: z.enum(["ok", "confirmation_required"]),
+  task: MaintenanceTaskViewSchema.optional(),
+  message: z.string().min(1).max(300).optional(),
+  proposedChanges: z.array(z.string().min(1).max(200)).optional()
+});
 
 export const GetPlanStatusInputSchema = z.object({ planId: PlanIdSchema });
 export const GetPlanStatusOutputSchema = z.object({

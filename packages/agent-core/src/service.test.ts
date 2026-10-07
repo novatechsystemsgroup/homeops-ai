@@ -1,15 +1,27 @@
 import { describe, expect, it } from "vitest";
 import type {
   AgentTraceEvent,
+  Evidence,
   Household,
   HouseholdMember,
+  MaintenanceTask,
   PlanAction,
   PlanDraft,
   RepairPlan,
   Source
 } from "@homeops/contracts";
 import { HomeOpsService, buildResearchQueries, inferIssueType, summariseSymptom, type ServiceConfig, type ServiceDeps } from "./service";
-import type { HouseholdRepository, ModelProvider, NewTraceEventInput, PlanRepository, SearchOptions, SearchProvider, TraceSink } from "./ports";
+import type {
+  EvidenceRepository,
+  HouseholdRepository,
+  MaintenanceRepository,
+  ModelProvider,
+  NewTraceEventInput,
+  PlanRepository,
+  SearchOptions,
+  SearchProvider,
+  TraceSink
+} from "./ports";
 
 const HOUSEHOLD_ID = "0f5c9a52-4a1e-4c1b-9a53-2f8f6d1a7b31";
 const MEMBER_ID = "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
@@ -108,11 +120,50 @@ function createHarness(overrides: Partial<ServiceDeps> = {}, config: Partial<Ser
     }
   };
 
+  const maintenanceTasks = new Map<string, MaintenanceTask>();
+  const maintenance: MaintenanceRepository = {
+    async list(householdId) {
+      return [...maintenanceTasks.values()].filter((task) => task.householdId === householdId);
+    },
+    async get(taskId) {
+      return maintenanceTasks.get(taskId) ?? null;
+    },
+    async save(task) {
+      maintenanceTasks.set(task.id, task);
+    },
+    async delete(taskId) {
+      return maintenanceTasks.delete(taskId);
+    }
+  };
+
+  const evidenceRows = new Map<string, { record: Evidence; bytes: Buffer }>();
+  const evidence: EvidenceRepository = {
+    async save(record, bytes) {
+      evidenceRows.set(record.id, { record, bytes });
+    },
+    async get(evidenceId) {
+      return evidenceRows.get(evidenceId) ?? null;
+    },
+    async listForPlan(planId) {
+      return [...evidenceRows.values()].map((row) => row.record).filter((record) => record.planId === planId);
+    },
+    async delete(evidenceId) {
+      return evidenceRows.delete(evidenceId);
+    },
+    async deleteForHousehold() {
+      const count = evidenceRows.size;
+      evidenceRows.clear();
+      return count;
+    }
+  };
+
   const deps: ServiceDeps = {
     model,
     search,
     plans,
     households,
+    maintenance,
+    evidence,
     trace,
     clock: { now: () => new Date("2026-10-07T08:00:00.000Z") },
     ids: { uuid: () => `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}` },
@@ -296,11 +347,130 @@ describe("HomeOpsService.createPlan", () => {
   });
 });
 
+/** Minimal JPEG with an EXIF segment, for the evidence tests. */
+function jpegWithExif(): Buffer {
+  const exif = Buffer.concat([Buffer.from("Exif\0\0", "latin1"), Buffer.from("GPS 51.45,-2.59", "latin1")]);
+  const app1 = Buffer.concat([Buffer.from([0xff, 0xe1]), Buffer.from([(exif.length + 2) >> 8, (exif.length + 2) & 0xff]), exif]);
+  return Buffer.concat([Buffer.from([0xff, 0xd8]), app1, Buffer.from([0xff, 0xda, 0x00, 0x02, 0x11]), Buffer.from([0xff, 0xd9])]);
+}
+
 function firstAction(plan: RepairPlan): PlanAction {
   const action = plan.actions[0];
   if (!action) throw new Error("expected the plan to contain at least one action");
   return action;
 }
+
+describe("home upkeep and repair evidence", () => {
+  it("lists upkeep with the most urgent task first", async () => {
+    const harness = createHarness();
+    await harness.service.createMaintenance({
+      householdId: HOUSEHOLD_ID,
+      title: "Clear the gutters",
+      cadence: "annual",
+      nextDueAt: "2026-12-01T09:00:00.000Z"
+    });
+    await harness.service.createMaintenance({
+      householdId: HOUSEHOLD_ID,
+      title: "Test the smoke alarms",
+      cadence: "monthly",
+      nextDueAt: "2026-10-01T09:00:00.000Z"
+    });
+
+    const views = await harness.service.listMaintenance(HOUSEHOLD_ID);
+    expect(views.map((view) => view.state)).toEqual(["overdue", "scheduled"]);
+    expect(views[0]?.title).toBe("Test the smoke alarms");
+    expect((await harness.service.maintenanceDue(HOUSEHOLD_ID)).map((view) => view.title)).toEqual(["Test the smoke alarms"]);
+  });
+
+  it("defaults a new task to due now", async () => {
+    const harness = createHarness();
+    const view = await harness.service.createMaintenance({ householdId: HOUSEHOLD_ID, title: "Book the boiler service", cadence: "annual" });
+    // Due today counts as due soon, not overdue: overdue means the date has passed.
+    expect(view.state).toBe("due_soon");
+    expect(view.daysUntilDue).toBe(0);
+    expect(view.nextDueAt).toBe("2026-10-07T08:00:00.000Z");
+  });
+
+  it("asks for confirmation before completing upkeep, then advances the next due date", async () => {
+    const harness = createHarness();
+    const created = await harness.service.createMaintenance({
+      householdId: HOUSEHOLD_ID,
+      title: "Book the annual boiler service",
+      cadence: "annual",
+      nextDueAt: "2026-10-01T09:00:00.000Z"
+    });
+
+    const blocked = await harness.service.completeMaintenance(created.id, false);
+    expect(blocked.kind).toBe("confirmation_required");
+    if (blocked.kind === "confirmation_required") {
+      expect(blocked.proposedChanges.join(" ")).toMatch(/next due/);
+    }
+
+    const applied = await harness.service.completeMaintenance(created.id, true);
+    expect(applied.kind).toBe("ok");
+    if (applied.kind === "ok") {
+      expect(applied.task.lastCompletedAt).toBe("2026-10-07T08:00:00.000Z");
+      expect(applied.task.nextDueAt.slice(0, 10)).toBe("2027-10-07");
+      expect(applied.task.state).toBe("scheduled");
+    }
+  });
+
+  it("attaches a photo as repair evidence and strips its metadata", async () => {
+    const harness = createHarness();
+    const created = await harness.service.createPlan({ householdId: HOUSEHOLD_ID, description: "The boiler is making a loud humming noise." });
+    const action = firstAction(created.plan);
+
+    const evidence = await harness.service.attachEvidence({
+      planId: created.plan.id,
+      actionId: action.id,
+      kind: "photo",
+      contentType: "image/jpeg",
+      originalName: "leak.jpg",
+      note: "Photo of the cabinet before the visit",
+      bytes: jpegWithExif()
+    });
+
+    expect(evidence.metadataStripped).toBe(true);
+    expect(evidence.url).toBe(`/api/evidence/${evidence.id}`);
+    expect(await harness.service.listEvidence(created.plan.id)).toHaveLength(1);
+    expect(harness.events.map((event) => event.type)).toContain("evidence.attached");
+  });
+
+  it("refuses evidence for an action that is not in the plan", async () => {
+    const harness = createHarness();
+    const created = await harness.service.createPlan({ householdId: HOUSEHOLD_ID, description: "The boiler is making a loud humming noise." });
+    await expect(
+      harness.service.attachEvidence({
+        planId: created.plan.id,
+        actionId: "11111111-1111-4111-8111-111111111111",
+        kind: "note",
+        contentType: "text/plain",
+        originalName: null,
+        note: "wrong action",
+        bytes: Buffer.from("hello")
+      })
+    ).rejects.toThrowError(/Action not found/i);
+  });
+
+  it("deletes evidence and records the removal", async () => {
+    const harness = createHarness();
+    const created = await harness.service.createPlan({ householdId: HOUSEHOLD_ID, description: "The boiler is making a loud humming noise." });
+    const evidence = await harness.service.attachEvidence({
+      planId: created.plan.id,
+      actionId: null,
+      kind: "note",
+      contentType: "text/plain",
+      originalName: null,
+      note: "Engineer said the part arrives Friday",
+      bytes: Buffer.from("Engineer said the part arrives Friday")
+    });
+
+    expect(await harness.service.deleteEvidence(evidence.id)).toBe(true);
+    expect(await harness.service.listEvidence(created.plan.id)).toHaveLength(0);
+    expect(harness.events.map((event) => event.type)).toContain("evidence.deleted");
+    expect(await harness.service.deleteEvidence(evidence.id)).toBe(false);
+  });
+});
 
 describe("HomeOpsService action mutations", () => {
   async function plannedHarness() {

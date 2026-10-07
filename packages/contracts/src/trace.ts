@@ -15,6 +15,10 @@ export const TraceEventTypeSchema = z.enum([
   "plan.persisted",
   "confirmation.required",
   "action.updated",
+  "evidence.attached",
+  "evidence.deleted",
+  "maintenance.created",
+  "maintenance.completed",
   "response.returned",
   "error"
 ]);

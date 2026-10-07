@@ -1,11 +1,19 @@
 import {
+  CADENCE_LABEL,
+  CreateMaintenanceTaskSchema,
   CreatePlanRequestSchema,
   PlanDraftSchema,
   URGENCY_RANK,
   type AgentTraceEvent,
   type Classification,
+  type CreateMaintenanceTask,
   type CreatePlanRequest,
   type CreatePlanResponse,
+  type Evidence,
+  type EvidenceKind,
+  type EvidenceWithUrl,
+  type MaintenanceTask,
+  type MaintenanceTaskView,
   type Household,
   type HouseholdMember,
   type IssueIntake,
@@ -19,12 +27,16 @@ import {
   type Source
 } from "@homeops/contracts";
 import { DomainError } from "./errors";
+import { validateEvidence } from "./evidence/attachments";
 import { buildFallbackPlanDraft } from "./fallback";
+import { dueOrSoon, nextDueFrom, sortByUrgency, viewOf } from "./maintenance";
 import { assessSafety } from "./safety/rules";
 import type {
   Clock,
+  EvidenceRepository,
   HouseholdRepository,
   IdGenerator,
+  MaintenanceRepository,
   ModelProvider,
   NewTraceEventInput,
   PlanModelInput,
@@ -47,11 +59,18 @@ export interface ServiceDeps {
   search: SearchProvider;
   plans: PlanRepository;
   households: HouseholdRepository;
+  maintenance: MaintenanceRepository;
+  evidence: EvidenceRepository;
   trace: TraceSink;
   clock: Clock;
   ids: IdGenerator;
   config: ServiceConfig;
 }
+
+export type MaintenanceActionResult =
+  | { kind: "ok"; task: MaintenanceTaskView }
+  | { kind: "confirmation_required"; message: string; proposedChanges: string[] }
+  | { kind: "not_found"; message: string };
 
 /** Product contract: a household plan stays readable and actionable. */
 const MAX_PLAN_ACTIONS = 5;
@@ -398,6 +417,168 @@ export class HomeOpsService {
       summary: `Action "${action.title}" marked ${input.status}.`
     });
     return { kind: "ok", plan: updated };
+  }
+
+  // ---------------------------------------------------------------- home upkeep
+
+  /** Voice and MCP clients may omit the household: fall back to the demo household. */
+  private resolveHouseholdId(requested: string | null): string {
+    const resolved = requested ?? this.deps.config.fallbackHouseholdId;
+    if (!resolved) throw new DomainError("household_required", 400, "A householdId is required.");
+    return resolved;
+  }
+
+  /** Recurring tasks for a household, most urgent first, with the due state computed. */
+  async listMaintenance(requestedHouseholdId: string | null): Promise<MaintenanceTaskView[]> {
+    const householdId = this.resolveHouseholdId(requestedHouseholdId);
+    const household = await this.deps.households.getHousehold(householdId);
+    if (!household) throw new DomainError("household_not_found", 404, `Household ${householdId} was not found.`);
+    const tasks = await this.deps.maintenance.list(householdId);
+    const now = this.deps.clock.now();
+    return sortByUrgency(tasks.map((task) => viewOf(task, now)));
+  }
+
+  /** Only what needs attention: the answer to "what should I do around the house?". */
+  async maintenanceDue(householdId: string | null): Promise<MaintenanceTaskView[]> {
+    return dueOrSoon(await this.listMaintenance(householdId));
+  }
+
+  async createMaintenance(input: CreateMaintenanceTask): Promise<MaintenanceTaskView> {
+    const parsed = CreateMaintenanceTaskSchema.parse(input);
+    const household = await this.deps.households.getHousehold(parsed.householdId);
+    if (!household) throw new DomainError("household_not_found", 404, `Household ${parsed.householdId} was not found.`);
+
+    const now = this.deps.clock.now();
+    const task: MaintenanceTask = {
+      id: this.deps.ids.uuid(),
+      householdId: parsed.householdId,
+      title: parsed.title.trim(),
+      instructions: parsed.instructions?.trim() ?? "",
+      category: parsed.category ?? "other",
+      cadence: parsed.cadence,
+      nextDueAt: parsed.nextDueAt ?? now.toISOString(),
+      lastCompletedAt: null,
+      sourcePlanId: parsed.sourcePlanId ?? null,
+      createdAt: now.toISOString()
+    };
+    await this.deps.maintenance.save(task);
+    await this.deps.trace.emit({
+      planId: task.sourcePlanId,
+      type: "maintenance.created",
+      status: "ok",
+      tool: "create_maintenance_task",
+      summary: `${task.title} added (${CADENCE_LABEL[task.cadence]}), next due ${task.nextDueAt.slice(0, 10)}.`
+    });
+    return viewOf(task, now);
+  }
+
+  async completeMaintenance(taskId: string, confirm: boolean): Promise<MaintenanceActionResult> {
+    const task = await this.deps.maintenance.get(taskId);
+    if (!task) return { kind: "not_found", message: "Maintenance task not found." };
+
+    const now = this.deps.clock.now();
+    const completedAt = now.toISOString();
+    const nextDueAt = nextDueFrom(task.cadence, completedAt);
+
+    if (!confirm) {
+      return {
+        kind: "confirmation_required",
+        message: `Mark "${task.title}" as done today?`,
+        proposedChanges: [
+          `last completed: ${task.lastCompletedAt?.slice(0, 10) ?? "never"} -> ${completedAt.slice(0, 10)}`,
+          `next due: ${task.nextDueAt.slice(0, 10)} -> ${nextDueAt.slice(0, 10)}`
+        ]
+      };
+    }
+
+    const updated: MaintenanceTask = { ...task, lastCompletedAt: completedAt, nextDueAt };
+    await this.deps.maintenance.save(updated);
+    await this.deps.trace.emit({
+      planId: updated.sourcePlanId,
+      type: "maintenance.completed",
+      status: "ok",
+      tool: "complete_maintenance_task",
+      summary: `${updated.title} completed; next due ${nextDueAt.slice(0, 10)}.`
+    });
+    return { kind: "ok", task: viewOf(updated, now) };
+  }
+
+  async deleteMaintenance(taskId: string): Promise<boolean> {
+    return this.deps.maintenance.delete(taskId);
+  }
+
+  // ----------------------------------------------------------------- evidence
+
+  /** Attaches proof to a plan action: a photo, a voice note or a written note. */
+  async attachEvidence(input: {
+    planId: string;
+    actionId: string | null;
+    kind: EvidenceKind;
+    contentType: string;
+    originalName: string | null;
+    note: string | null;
+    bytes: Buffer;
+  }): Promise<EvidenceWithUrl> {
+    const plan = await this.deps.plans.getPlan(input.planId);
+    if (!plan) throw new DomainError("plan_not_found", 404, "Plan not found.");
+    if (input.actionId && !plan.actions.some((action) => action.id === input.actionId)) {
+      throw new DomainError("action_not_found", 404, "Action not found in this plan.");
+    }
+
+    const validated = validateEvidence({
+      kind: input.kind,
+      contentType: input.contentType,
+      originalName: input.originalName,
+      note: input.note,
+      bytes: input.bytes
+    });
+
+    const record: Evidence = {
+      id: this.deps.ids.uuid(),
+      planId: input.planId,
+      actionId: input.actionId,
+      kind: validated.kind,
+      contentType: validated.contentType,
+      byteSize: validated.bytes.length,
+      originalName: validated.originalName,
+      note: validated.note,
+      metadataStripped: validated.metadataStripped,
+      createdAt: this.deps.clock.now().toISOString()
+    };
+    await this.deps.evidence.save(record, validated.bytes);
+    await this.deps.trace.emit({
+      planId: input.planId,
+      type: "evidence.attached",
+      status: "ok",
+      tool: validated.kind,
+      summary: `${validated.kind.replace("_", " ")} attached${input.actionId ? " to an action" : ""} (${Math.max(1, Math.round(record.byteSize / 1024))} KB)${record.metadataStripped ? ", image metadata removed" : ""}.`
+    });
+    return { ...record, url: `/api/evidence/${record.id}` };
+  }
+
+  async listEvidence(planId: string): Promise<EvidenceWithUrl[]> {
+    const rows = await this.deps.evidence.listForPlan(planId);
+    return rows.map((row) => ({ ...row, url: `/api/evidence/${row.id}` }));
+  }
+
+  async getEvidence(evidenceId: string): Promise<{ record: Evidence; bytes: Buffer } | null> {
+    return this.deps.evidence.get(evidenceId);
+  }
+
+  async deleteEvidence(evidenceId: string): Promise<boolean> {
+    const existing = await this.deps.evidence.get(evidenceId);
+    if (!existing) return false;
+    const deleted = await this.deps.evidence.delete(evidenceId);
+    if (deleted) {
+      await this.deps.trace.emit({
+        planId: existing.record.planId,
+        type: "evidence.deleted",
+        status: "ok",
+        tool: existing.record.kind,
+        summary: `${existing.record.kind.replace("_", " ")} removed from the plan.`
+      });
+    }
+    return deleted;
   }
 
   private async tryClassify(
