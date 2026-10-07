@@ -115,6 +115,22 @@ Production runs the same images on the existing Coolify server — see
 [docs/deployment.md](docs/deployment.md) for the DNS record, the two applications, environment
 variables and post-deploy verification.
 
+## Submission status
+
+Requirements verified against the Nebius × NVIDIA rules (mirror, as Devpost returns 503 to tooling):
+*"a working demo URL, a public YouTube demonstration video of no more than three minutes, and a public code
+repository with an open-source license and setup instructions"*, plus product feedback on the Nebius and
+NVIDIA tools.
+
+| Deliverable | State |
+|---|---|
+| Working product, tested | done — 69 unit/contract tests, 6 browser flows, live check against real providers |
+| Docker images + one-command deploy | done locally (`docker compose`); Coolify apps pending DNS + access |
+| Public code repository with OSI licence | **pending** — local git has 5 commits, no GitHub remote yet; MIT already in `LICENSE` |
+| Public demo URL | pending the Coolify deploy (`homeops.novatechsystem.co.uk`) |
+| Public video ≤ 3 min (English) + Devpost pages | pending (M6 for Amazon, M7 for Nebius) |
+| Product feedback (Nebius/NVIDIA, Amazon friction log) | pending |
+
 ## Documentation
 
 | Document | Content |
