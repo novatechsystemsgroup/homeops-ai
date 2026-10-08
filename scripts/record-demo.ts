@@ -227,13 +227,13 @@ async function makeEvidencePhoto(browser: Browser): Promise<void> {
 }
 
 
-/** Waits until the console has the household: chips are disabled while it loads. */
+/**
+ * Waits until the console really has the household. The upkeep list is rendered from the
+ * household id, so the first task is the honest signal; clicking earlier used to be dropped.
+ */
 async function waitForHousehold(page: Page): Promise<void> {
-  await page
-    .getByTestId("connecting-hint")
-    .waitFor({ state: "detached", timeout: 30_000 })
-    .catch(() => undefined);
-  await page.waitForTimeout(250);
+  await page.getByTestId("maintenance-task").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
+  await page.waitForTimeout(300);
 }
 
 async function main(): Promise<void> {
