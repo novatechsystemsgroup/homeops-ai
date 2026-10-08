@@ -5,6 +5,7 @@
  *   pnpm exec tsx scripts/record-demo.ts            # all scenes
  *   SCENES=02,04 pnpm exec tsx scripts/record-demo.ts
  */
+/// <reference lib="dom" />
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

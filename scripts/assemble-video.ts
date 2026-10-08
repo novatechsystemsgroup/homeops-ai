@@ -157,54 +157,6 @@ function captionFilters(words: WordTiming[], offsetSeconds: number, workDir: str
     .join(",");
 }
 
-function legacyWriteCaptionsRemoved(words: WordTiming[], offsetSeconds: number, output: string): void {
-  const header = [
-    "[Script Info]",
-    "ScriptType: v4.00+",
-    "PlayResX: 1920",
-    "PlayResY: 1080",
-    "WrapStyle: 2",
-    "",
-    "[V4+ Styles]",
-    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    "Style: Caption,Arial,40,&H00FFFFFF,&H000000FF,&H00202020,&H80000000,-1,0,0,0,100,100,0,0,1,1.6,1,2,120,120,210,1",
-    "",
-    "[Events]",
-    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
-  ];
-
-  const clock = (value: number): string => {
-    const total = Math.max(0, value + offsetSeconds);
-    const hours = Math.floor(total / 3600);
-    const minutes = Math.floor((total % 3600) / 60);
-    const seconds = Math.floor(total % 60);
-    const centis = Math.round((total % 1) * 100);
-    return hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + "." + String(centis).padStart(2, "0");
-  };
-
-  // The provider also returns marker tokens such as <start>: they are not speech.
-  const spoken = words.filter((word) => word.word.trim() !== "" && !/^<.*>$/.test(word.word.trim()));
-  const cues: string[] = [];
-  let line: string[] = [];
-  let from = 0;
-
-  const flush = (to: number): void => {
-    if (line.length === 0) return;
-    cues.push("Dialogue: 0," + clock(from) + "," + clock(to) + ",Caption,,0,0,0,," + line.join(" "));
-    line = [];
-  };
-
-  for (const word of spoken) {
-    if (line.length === 0) from = word.start;
-    line.push(word.word.trim());
-    if (line.length >= 7 || line.join(" ").length >= 46) flush(word.end);
-  }
-  const last = spoken[spoken.length - 1];
-  if (last) flush(last.end);
-
-  writeFileSync(output, header.concat(cues).join("\n") + "\n");
-}
-
 function lowerThird(label: string): string {
   const text = label.replace(/:/g, "\\:").replace(/'/g, "");
   return (
@@ -266,8 +218,6 @@ async function main(): Promise<void> {
       "[0:v]scale=1920:1080,fps=30," + fitted.filter + "," + lowerThird(scene.label) + (captionFilter !== "" ? "," + captionFilter : "") + "[v];" +
       "[1:a]adelay=400|400,volume=1.0[a]";
     const filter = graph;
-      // A short lead-in so the picture is on screen before the voice starts.
-      "[1:a]adelay=400|400,volume=1.0[a]";
 
     run(FFMPEG, [
       "-y", "-loglevel", "error",
