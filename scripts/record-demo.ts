@@ -6,7 +6,7 @@
  *   SCENES=02,04 pnpm exec tsx scripts/record-demo.ts
  */
 import { chromium, type Browser, type Page } from "@playwright/test";
-import { mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const SITE = process.env.WEB_URL ?? "https://homeops.novatechsystem.co.uk";
@@ -206,7 +206,27 @@ const SCENES: Scene[] = [
       await glide(page, 500);
       await page.waitForTimeout(1500);
     }
-  }
+  },
+  {
+    name: "09-mcp",
+    run: async (page) => {
+      // A terminal cannot be captured from Playwright, so the real output of the MCP smoke
+      // test is rendered exactly as printed, inside a terminal frame.
+      const output = readFileSync("video/assets/mcp-smoke.txt", "utf8").replace(/</g, "&lt;");
+      await page.setContent(
+        '<!doctype html><html><body style="margin:0;background:#0b1120;color:#cbd5e1;font-family:Menlo,monospace">' +
+          '<div style="padding:26px 34px">' +
+          '<p style="margin:0 0 14px;color:#7dd3fc;font-size:15px">$ pnpm mcp:smoke   -   the public MCP endpoint at /mcp</p>' +
+          '<pre style="margin:0;font-size:19px;line-height:1.6;white-space:pre-wrap">' + output + "</pre>" +
+          "</div></body></html>"
+      );
+      await page.waitForTimeout(1400);
+      await glide(page, 900, 40);
+      await page.waitForTimeout(1600);
+      await glide(page, 1800, 40);
+      await page.waitForTimeout(1800);
+    }
+  },
 ];
 
 /** A placeholder photo for the evidence scene: it is the app's own upload path that matters. */
