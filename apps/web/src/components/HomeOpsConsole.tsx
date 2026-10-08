@@ -110,7 +110,14 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
 
   const submit = useCallback(
     async (description: string, scenario: Scenario | null = null, clarificationAnswers: string[] = []) => {
-      if (!household || busy) return;
+      if (busy) return;
+      if (!household) {
+        // The household is still loading (about half a second). Queue the request instead of
+        // dropping it: a fast click used to look like a broken button.
+        setPendingScenario(scenario);
+        setPendingText(description);
+        return;
+      }
       setBusy(true);
       setElapsed(0);
       setError(null);
@@ -446,11 +453,21 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
               value={voice.interim ? `${input}` : input}
               onChange={(event) => setInput(event.target.value)}
             />
-            <button type="submit" className="rounded-lg bg-sky-500 px-5 py-3 text-sm font-medium text-slate-950 disabled:opacity-60" disabled={busy} data-testid="send-button">
+            <button
+              type="submit"
+              className="rounded-lg bg-sky-500 px-5 py-3 text-sm font-medium text-slate-950 disabled:opacity-60"
+              disabled={busy || !household}
+              data-testid="send-button"
+            >
               {busy ? "Working…" : "Send"}
             </button>
           </div>
 
+          {!household ? (
+            <p className="text-xs text-slate-400" data-testid="connecting-hint">
+              Connecting to the demo household…
+            </p>
+          ) : null}
           {voice.listening && voice.interim ? (
             <p className="text-xs text-rose-200" data-testid="voice-interim">
               hearing: “{voice.interim}”
@@ -471,8 +488,8 @@ export function HomeOpsConsole({ variant }: { variant: "alexa" | "nebius" }) {
                   scenario.emergency ? "border-rose-400/50 hover:border-rose-300" : "border-slate-700 hover:border-sky-400"
                 }`}
                 onClick={() => void submit(scenario.text, scenario)}
-                disabled={busy}
-                title={scenario.text}
+                disabled={busy || !household}
+                title={household ? scenario.text : "Connecting to the demo household…"}
               >
                 {scenario.icon} {scenario.label}
               </button>
